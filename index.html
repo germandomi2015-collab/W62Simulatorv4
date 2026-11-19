@@ -1442,6 +1442,15 @@
                     <option value="konghucu">🏮 Konghucu</option>
                 </select>
             </div>
+            <div>
+                <label style="font-size:11px; font-weight:900; color:#4a3520; display:block; margin-bottom:5px;">Kondisi Kelahiran (Orang Tua / Panti Asuhan):</label>
+                <select id="selectBirthFamilyOrigin" class="input-text" style="padding:8px 10px;">
+                    <option value="random">🎲 Acak (100% RNG)</option>
+                    <option value="complete">👨‍👩‍👦 Orang Tua Lengkap (Ayah & Ibu)</option>
+                    <option value="single_parent">👤 Satu Orang Tua (Single Parent)</option>
+                    <option value="orphanage">🏠 Tanpa Orang Tua (Panti Asuhan)</option>
+                </select>
+            </div>
             <div style="background:#f8f1df; border:2px solid #decb9f; border-radius:12px; padding:10px; font-size:11px; color:#5c4028; font-weight:700;">
                 🔒 <b style="color:#b45309;">Parameter & Takdir Terkunci 100% RNG:</b><br>
                 • 8 Kota Domisili & Sekolah (Jaksel SCBD, Depok, Bekasi, Surabaya, Bandung, Medan, Jogja, Bali)<br>
@@ -3116,6 +3125,427 @@
         renderKarirSheet("kerja");
     }
 
+
+    // =========================================================================
+    // DATABASE 72 PENYAKIT (RINGAN, SEDANG & BERAT/KRITIS SESUAI KLAUSUL ASURANSI)
+    // =========================================================================
+    const DISEASES_72 = [
+        // --- 15 PENYAKIT RINGAN ---
+        { id: 1, name: "Influenza & Demam Musiman", severity: "ringan", medicalCost: 0.4, incomeLossPct: 0.02, healthDrop: 4, insuranceClause: false },
+        { id: 2, name: "ISPA (Infeksi Saluran Pernapasan Akut)", severity: "ringan", medicalCost: 0.6, incomeLossPct: 0.03, healthDrop: 5, insuranceClause: false },
+        { id: 3, name: "Gastroenteritis Akut (Diare / Keracunan Makanan)", severity: "ringan", medicalCost: 0.8, incomeLossPct: 0.03, healthDrop: 6, insuranceClause: false },
+        { id: 4, name: "Gastritis / Asam Lambung (GERD)", severity: "ringan", medicalCost: 0.7, incomeLossPct: 0.03, healthDrop: 5, insuranceClause: false },
+        { id: 5, name: "Migrain & Vertigo Akut", severity: "ringan", medicalCost: 0.9, incomeLossPct: 0.04, healthDrop: 5, insuranceClause: false },
+        { id: 6, name: "Konjungtivitis (Infeksi Mata Merah)", severity: "ringan", medicalCost: 0.5, incomeLossPct: 0.02, healthDrop: 3, insuranceClause: false },
+        { id: 7, name: "Dermatitis Alergi & Eksim Kulit", severity: "ringan", medicalCost: 0.8, incomeLossPct: 0.02, healthDrop: 4, insuranceClause: false },
+        { id: 8, name: "Radang Amandel (Tonsilitis)", severity: "ringan", medicalCost: 1.2, incomeLossPct: 0.04, healthDrop: 6, insuranceClause: false },
+        { id: 9, name: "Infeksi Saluran Kemih (ISK)", severity: "ringan", medicalCost: 1.1, incomeLossPct: 0.04, healthDrop: 6, insuranceClause: false },
+        { id: 10, name: "Sinusitis Kronis Ringan", severity: "ringan", medicalCost: 1.5, incomeLossPct: 0.04, healthDrop: 5, insuranceClause: false },
+        { id: 11, name: "Cacar Air (Varicella)", severity: "ringan", medicalCost: 1.0, incomeLossPct: 0.05, healthDrop: 6, insuranceClause: false },
+        { id: 12, name: "Asam Urat (Gout Arthritis)", severity: "ringan", medicalCost: 1.3, incomeLossPct: 0.04, healthDrop: 6, insuranceClause: false },
+        { id: 13, name: "Infeksi Telinga Tengah (Otitis Media)", severity: "ringan", medicalCost: 1.0, incomeLossPct: 0.03, healthDrop: 5, insuranceClause: false },
+        { id: 14, name: "Bronkitis Akut", severity: "ringan", medicalCost: 1.6, incomeLossPct: 0.05, healthDrop: 7, insuranceClause: false },
+        { id: 15, name: "Wasir / Hemoroid Ringan", severity: "ringan", medicalCost: 1.8, incomeLossPct: 0.04, healthDrop: 6, insuranceClause: false },
+
+        // --- 17 PENYAKIT SEDANG ---
+        { id: 16, name: "Demam Berdarah Dengue (DBD)", severity: "sedang", medicalCost: 8, incomeLossPct: 0.08, healthDrop: 12, insuranceClause: false },
+        { id: 17, name: "Demam Tifoid (Tifus Rawat Inap)", severity: "sedang", medicalCost: 6.5, incomeLossPct: 0.08, healthDrop: 10, insuranceClause: false },
+        { id: 18, name: "Radang Usus Buntu (Apendisitis / Operasi)", severity: "sedang", medicalCost: 18, incomeLossPct: 0.12, healthDrop: 14, insuranceClause: false },
+        { id: 19, name: "Pneumonia (Radang Paru-Paru)", severity: "sedang", medicalCost: 15, incomeLossPct: 0.12, healthDrop: 15, insuranceClause: false },
+        { id: 20, name: "Tuberkulosis Paru (TBC)", severity: "sedang", medicalCost: 12, incomeLossPct: 0.15, healthDrop: 16, insuranceClause: false },
+        { id: 21, name: "Batu Ginjal (Nefrolitiasis / Laser ESWL)", severity: "sedang", medicalCost: 22, incomeLossPct: 0.10, healthDrop: 13, insuranceClause: false },
+        { id: 22, name: "Batu Empedu (Kolelitiasis / Laparoskopi)", severity: "sedang", medicalCost: 25, incomeLossPct: 0.12, healthDrop: 13, insuranceClause: false },
+        { id: 23, name: "Hernia Inguinalis (Operasi)", severity: "sedang", medicalCost: 20, incomeLossPct: 0.10, healthDrop: 12, insuranceClause: false },
+        { id: 24, name: "Saraf Kejepit (HNP Tulang Belakang)", severity: "sedang", medicalCost: 28, incomeLossPct: 0.15, healthDrop: 14, insuranceClause: false },
+        { id: 25, name: "Diabetes Melitus Tipe 2 (Komplikasi Awal)", severity: "sedang", medicalCost: 14, incomeLossPct: 0.10, healthDrop: 12, insuranceClause: false },
+        { id: 26, name: "Hipertensi Berat (Krisis Hipertensi)", severity: "sedang", medicalCost: 11, incomeLossPct: 0.09, healthDrop: 13, insuranceClause: false },
+        { id: 27, name: "Asma Bronkial Akut Berat", severity: "sedang", medicalCost: 9, incomeLossPct: 0.08, healthDrop: 12, insuranceClause: false },
+        { id: 28, name: "Malaria Tropika", severity: "sedang", medicalCost: 7.5, incomeLossPct: 0.10, healthDrop: 13, insuranceClause: false },
+        { id: 29, name: "Hepatitis A / B Akut", severity: "sedang", medicalCost: 16, incomeLossPct: 0.14, healthDrop: 14, insuranceClause: false },
+        { id: 30, name: "Patah Tulang (Fraktur Kecelakaan / Operasi Pen)", severity: "sedang", medicalCost: 32, incomeLossPct: 0.18, healthDrop: 15, insuranceClause: false },
+        { id: 31, name: "Katarak Mata (Operasi Lensa)", severity: "sedang", medicalCost: 19, incomeLossPct: 0.08, healthDrop: 9, insuranceClause: false },
+        { id: 32, name: "Hipertiroid / Gangguan Kelenjar Tiroid", severity: "sedang", medicalCost: 13, incomeLossPct: 0.10, healthDrop: 11, insuranceClause: false },
+
+        // --- 40 PENYAKIT BERAT / KRITIS (KLAUSUL ASURANSI PENYAKIT KRITIS) ---
+        { id: 33, name: "Serangan Jantung (Infark Miokard Akut)", severity: "kritis", medicalCost: 185, incomeLossPct: 0.35, healthDrop: 28, insuranceClause: true },
+        { id: 34, name: "Stroke (Sumbatan / Pendarahan Otak)", severity: "kritis", medicalCost: 210, incomeLossPct: 0.40, healthDrop: 30, insuranceClause: true },
+        { id: 35, name: "Kanker Stadium Lanjut (Karsinoma Ganas)", severity: "kritis", medicalCost: 350, incomeLossPct: 0.45, healthDrop: 32, insuranceClause: true },
+        { id: 36, name: "Gagal Ginjal Kronis (Cuci Darah Rutin)", severity: "kritis", medicalCost: 240, incomeLossPct: 0.40, healthDrop: 28, insuranceClause: true },
+        { id: 37, name: "Operasi Bypass Arteri Koroner (CABG)", severity: "kritis", medicalCost: 280, incomeLossPct: 0.35, healthDrop: 26, insuranceClause: true },
+        { id: 38, name: "Transplantasi Organ Utama / Sumsum Tulang", severity: "kritis", medicalCost: 450, incomeLossPct: 0.50, healthDrop: 32, insuranceClause: true },
+        { id: 39, name: "Koma (Penurunan Kesadaran Kritis)", severity: "kritis", medicalCost: 220, incomeLossPct: 0.45, healthDrop: 35, insuranceClause: true },
+        { id: 40, name: "Kebutaan Total Permanen", severity: "kritis", medicalCost: 120, incomeLossPct: 0.40, healthDrop: 22, insuranceClause: true },
+        { id: 41, name: "Tuli Permanen (Hilang Pendengaran Total)", severity: "kritis", medicalCost: 95, incomeLossPct: 0.25, healthDrop: 18, insuranceClause: true },
+        { id: 42, name: "Hilangnya Kemampuan Bicara Permanen", severity: "kritis", medicalCost: 90, incomeLossPct: 0.30, healthDrop: 18, insuranceClause: true },
+        { id: 43, name: "Luka Bakar Berat (>20% Permukaan Tubuh)", severity: "kritis", medicalCost: 195, incomeLossPct: 0.35, healthDrop: 28, insuranceClause: true },
+        { id: 44, name: "Penyakit Alzheimer / Demensia Berat", severity: "kritis", medicalCost: 160, incomeLossPct: 0.40, healthDrop: 24, insuranceClause: true },
+        { id: 45, name: "Penyakit Parkinson Stadium Lanjut", severity: "kritis", medicalCost: 150, incomeLossPct: 0.35, healthDrop: 24, insuranceClause: true },
+        { id: 46, name: "Multiple Sclerosis (Sklerosis Ganda)", severity: "kritis", medicalCost: 175, incomeLossPct: 0.35, healthDrop: 25, insuranceClause: true },
+        { id: 47, name: "Anemia Aplastik Kronis", severity: "kritis", medicalCost: 180, incomeLossPct: 0.35, healthDrop: 26, insuranceClause: true },
+        { id: 48, name: "Meningitis Bakteri Berat", severity: "kritis", medicalCost: 165, incomeLossPct: 0.30, healthDrop: 28, insuranceClause: true },
+        { id: 49, name: "Tumor Otak Jinak (Operasi Kraniotomi)", severity: "kritis", medicalCost: 230, incomeLossPct: 0.35, healthDrop: 27, insuranceClause: true },
+        { id: 50, name: "Hepatitis Virus Fulminan", severity: "kritis", medicalCost: 190, incomeLossPct: 0.35, healthDrop: 28, insuranceClause: true },
+        { id: 51, name: "Sirosis Hati / Gagal Hati Tahap Akhir", severity: "kritis", medicalCost: 260, incomeLossPct: 0.40, healthDrop: 30, insuranceClause: true },
+        { id: 52, name: "Lupus Eritematosus Sistemik (Lupus Nefritis)", severity: "kritis", medicalCost: 155, incomeLossPct: 0.30, healthDrop: 24, insuranceClause: true },
+        { id: 53, name: "Poliomielitis Berat", severity: "kritis", medicalCost: 130, incomeLossPct: 0.35, healthDrop: 24, insuranceClause: true },
+        { id: 54, name: "Distrofi Otot Progresif", severity: "kritis", medicalCost: 145, incomeLossPct: 0.35, healthDrop: 24, insuranceClause: true },
+        { id: 55, name: "Skleroderma Progresif", severity: "kritis", medicalCost: 140, incomeLossPct: 0.30, healthDrop: 22, insuranceClause: true },
+        { id: 56, name: "Penyakit Paru Obstruktif Kronis (PPOK) Berat", severity: "kritis", medicalCost: 160, incomeLossPct: 0.35, healthDrop: 26, insuranceClause: true },
+        { id: 57, name: "Hipertensi Arteri Pulmonal Primer", severity: "kritis", medicalCost: 185, incomeLossPct: 0.35, healthDrop: 27, insuranceClause: true },
+        { id: 58, name: "Operasi Penggantian Katup Jantung", severity: "kritis", medicalCost: 275, incomeLossPct: 0.35, healthDrop: 26, insuranceClause: true },
+        { id: 59, name: "Operasi Pembuluh Darah Aorta", severity: "kritis", medicalCost: 290, incomeLossPct: 0.35, healthDrop: 28, insuranceClause: true },
+        { id: 60, name: "Penyakit Arteri Koroner Serius Lainnya", severity: "kritis", medicalCost: 215, incomeLossPct: 0.30, healthDrop: 25, insuranceClause: true },
+        { id: 61, name: "Kardiomiopati Berat (Gagal Jantung)", severity: "kritis", medicalCost: 245, incomeLossPct: 0.40, healthDrop: 29, insuranceClause: true },
+        { id: 62, name: "HIV Akibat Transfusi Darah Medis", severity: "kritis", medicalCost: 140, incomeLossPct: 0.30, healthDrop: 24, insuranceClause: true },
+        { id: 63, name: "Ensefalitis (Radang Otak Akut)", severity: "kritis", medicalCost: 195, incomeLossPct: 0.35, healthDrop: 28, insuranceClause: true },
+        { id: 64, name: "Kelumpuhan Anggota Gerak (Paralisis)", severity: "kritis", medicalCost: 210, incomeLossPct: 0.45, healthDrop: 26, insuranceClause: true },
+        { id: 65, name: "Sindrom Apallic (Vegetatif Persisten)", severity: "kritis", medicalCost: 310, incomeLossPct: 0.50, healthDrop: 34, insuranceClause: true },
+        { id: 66, name: "Penyakit Motor Neuron (ALS)", severity: "kritis", medicalCost: 225, incomeLossPct: 0.45, healthDrop: 29, insuranceClause: true },
+        { id: 67, name: "Pankreatitis Kronis Berulang", severity: "kritis", medicalCost: 150, incomeLossPct: 0.30, healthDrop: 23, insuranceClause: true },
+        { id: 68, name: "Kolitis Ulseratif Berat", severity: "kritis", medicalCost: 135, incomeLossPct: 0.25, healthDrop: 22, insuranceClause: true },
+        { id: 69, name: "Penyakit Crohn Berat", severity: "kritis", medicalCost: 140, incomeLossPct: 0.25, healthDrop: 22, insuranceClause: true },
+        { id: 70, name: "Filariasis Kronis (Elephantiasis)", severity: "kritis", medicalCost: 110, incomeLossPct: 0.30, healthDrop: 20, insuranceClause: true },
+        { id: 71, name: "Myasthenia Gravis Berat", severity: "kritis", medicalCost: 165, incomeLossPct: 0.35, healthDrop: 25, insuranceClause: true },
+        { id: 72, name: "Trauma Kepala Mayor (Cedera Otak Berat)", severity: "kritis", medicalCost: 260, incomeLossPct: 0.40, healthDrop: 30, insuranceClause: true }
+    ];
+
+    function triggerDiseaseEvent() {
+        if (!player || !player.alive || player.inJail) return false;
+        let sickChance = 0.24;
+        if (player.stats.health < 50) sickChance += 0.14;
+        if (player.age >= 50) sickChance += 0.12;
+        if (Math.random() > sickChance) return false;
+
+        const r = Math.random();
+        const critThreshold = (player.age >= 45 || player.stats.health < 40) ? 0.28 : 0.14;
+        let pool;
+        if (r < critThreshold) pool = DISEASES_72.filter(d => d.severity === "kritis");
+        else if (r < critThreshold + 0.32) pool = DISEASES_72.filter(d => d.severity === "sedang");
+        else pool = DISEASES_72.filter(d => d.severity === "ringan");
+
+        const dis = pickRandom(pool);
+        const isChildMedical = player.age >= 0 && player.age <= 12;
+        const annualIncome = isChildMedical ? 0 : ((player.job ? player.salary : 0) + getSideJobsAnnualIncome());
+        const prodLoss = roundMoney(annualIncome * dis.incomeLossPct);
+        const rawMedCost = dis.medicalCost;
+
+        const hasVip = hasActiveLifeInsurance();
+        let outOfPocketMed = rawMedCost;
+        let coverageLabel = "Bayar Tunai Mandiri (0% cover)";
+        let payerType = "player"; // "player" | "parents" | "orphanage"
+        let payerLabel = "Saldo Pribadi";
+        let payerBalanceText = formatShortJuta(player.money);
+
+        if (isChildMedical) {
+            const aliveParents = (player.parents || []).filter(p => p.alive);
+            if (aliveParents.length > 0) {
+                payerType = "parents";
+                payerLabel = aliveParents.length === 1 ? `Saldo ${aliveParents[0].name}` : "Saldo Orang Tua";
+                const totalPWealth = roundMoney(aliveParents.reduce((s, p) => s + (p.wealth || 0), 0));
+                payerBalanceText = formatShortJuta(totalPWealth);
+
+                const pIns = player.parentInsurance || { id: "none", icon: "❌", name: "Tanpa BPJS/Asuransi Ortu", coverage: 0 };
+                if (hasVip) {
+                    outOfPocketMed = 0;
+                    coverageLabel = "🛡️ Dicover 100% Polis Asuransi Jiwa VIP (Rp 0)";
+                } else if (pIns.coverage > 0) {
+                    const coveredMed = roundMoney(rawMedCost * pIns.coverage);
+                    outOfPocketMed = roundMoney(rawMedCost - coveredMed);
+                    coverageLabel = `${pIns.icon || '🏥'} ${pIns.name} (${Math.round(pIns.coverage * 100)}% ditanggung)`;
+                } else {
+                    outOfPocketMed = rawMedCost;
+                    coverageLabel = "❌ Orang Tua Tidak Memiliki BPJS/Asuransi (0% cover)";
+                }
+            } else {
+                // Panti Asuhan / Yayasan
+                if (!player.orphanage) {
+                    player.orphanage = createOrphanageData(player.city ? player.city.name : "Nusantara");
+                }
+                payerType = "orphanage";
+                payerLabel = `Saldo ${player.orphanage.name}`;
+                payerBalanceText = formatShortJuta(player.orphanage.wealth || 0);
+
+                const yIns = player.orphanage.insurance || { id: "none", icon: "❌", name: "Tanpa Asuransi Yayasan", coverage: 0 };
+                if (hasVip) {
+                    outOfPocketMed = 0;
+                    coverageLabel = "🛡️ Dicover 100% Polis Asuransi Jiwa VIP (Rp 0)";
+                } else if (yIns.coverage > 0) {
+                    const coveredMed = roundMoney(rawMedCost * yIns.coverage);
+                    outOfPocketMed = roundMoney(rawMedCost - coveredMed);
+                    coverageLabel = `${yIns.icon || '🛡️'} ${yIns.name} (${Math.round(yIns.coverage * 100)}% ditanggung)`;
+                } else {
+                    outOfPocketMed = rawMedCost;
+                    coverageLabel = "❌ Yayasan Tidak Memiliki Asuransi (0% cover)";
+                }
+            }
+        } else {
+            const bpjsObj = BPJS_PLANS.find(b => b.id === (player.bpjsPlan || "none")) || BPJS_PLANS[0];
+            if (hasVip) {
+                outOfPocketMed = 0;
+                coverageLabel = "🛡️ Dicover 100% Polis Asuransi Jiwa VIP (Rp 0)";
+            } else if (bpjsObj.coverage > 0) {
+                const coveredMed = roundMoney(rawMedCost * bpjsObj.coverage);
+                outOfPocketMed = roundMoney(rawMedCost - coveredMed);
+                coverageLabel = `🏥 ${bpjsObj.name} (${Math.round(bpjsObj.coverage * 100)}% dicover)`;
+            }
+        }
+
+        const totalEstLoss = roundMoney(outOfPocketMed + prodLoss);
+        const sevLabel = dis.severity === "kritis" ? "🚨 PENYAKIT KRITIS (KLAUSUL ASURANSI)" : (dis.severity === "sedang" ? "⚠️ PENYAKIT SEDANG" : "🩺 PENYAKIT RINGAN");
+        const sevColor = dis.severity === "kritis" ? "#dc2626" : (dis.severity === "sedang" ? "#d97706" : "#0284c7");
+
+        if (!Array.isArray(player.diseaseHistory)) player.diseaseHistory = [];
+        player.diseaseHistory.push({
+            age: player.age,
+            id: dis.id,
+            name: dis.name,
+            severity: dis.severity,
+            rawMedCost,
+            outOfPocketMed,
+            prodLoss,
+            totalEstLoss,
+            payerLabel
+        });
+
+        const payerNoteHtml = isChildMedical
+            ? `• Penanggung Biaya (Usia 0–12 Thn): <b style="color:#0284c7;">${payerLabel}</b> (Saldo: ${payerBalanceText})<br>`
+            : "";
+
+        showPopupEvent(
+            dis.severity === "kritis" ? "🚑" : (dis.severity === "sedang" ? "🏥" : "🤒"),
+            `Diagnosa Medis: ${dis.name}`,
+            `<div style="font-size:10.5px; font-weight:900; color:${sevColor}; margin-bottom:6px;">${sevLabel} (#${dis.id}/72)</div>
+            Kamu terdiagnosa mengalami <b>${dis.name}</b>!<br>
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:8px; margin-top:6px; font-size:11px; line-height:1.5;">
+                ${payerNoteHtml}
+                • Biaya Medis RS: <b>${formatShortJuta(rawMedCost)}</b><br>
+                • Proteksi: <b>${coverageLabel}</b><br>
+                • Biaya Medis Dibayar (${payerLabel}): <b style="color:#dc2626;">${formatShortJuta(outOfPocketMed)}</b><br>
+                ${!isChildMedical ? `• Estimasi Kerugian Pendapatan/Cuti: <b style="color:#d97706;">${formatShortJuta(prodLoss)}</b><br>` : ''}
+                • <b>Total Estimasi Kerugian Bersih: <span style="color:#b91c1c;">-${formatShortJuta(totalEstLoss)}</span></b>
+            </div>`,
+            [
+                {
+                    text: isChildMedical
+                        ? `💊 Berobat Resmi (Potong ${payerLabel}: ${formatShortJuta(outOfPocketMed)})`
+                        : `💊 Jalani Pengobatan Resmi (Bayar ${formatShortJuta(totalEstLoss)})`,
+                    fn: () => {
+                        if (payerType === "parents") {
+                            deductChildMedicalFromParents(outOfPocketMed);
+                            const remParent = roundMoney((player.parents || []).filter(p => p.alive).reduce((s, p) => s + (p.wealth || 0), 0));
+                            addLog(`🏥 **PENGOBATAN ANAK (${dis.name.toUpperCase()}):** Karena usiamu ${player.age} tahun, biaya berobat **-${formatShortJuta(outOfPocketMed)}** (${coverageLabel}) dipotong langsung dari **${payerLabel}** (Sisa saldo ortu: **${formatShortJuta(remParent)}**).`, dis.severity === "kritis" ? "danger" : "normal");
+                        } else if (payerType === "orphanage") {
+                            player.orphanage.wealth = roundMoney((player.orphanage.wealth || 0) - outOfPocketMed);
+                            addLog(`🏥 **PENGOBATAN PANTI ASUHAN (${dis.name.toUpperCase()}):** Biaya pengobatanmu **-${formatShortJuta(outOfPocketMed)}** (${coverageLabel}) ditanggung langsung dari **${payerLabel}** (Sisa kas yayasan: **${formatShortJuta(player.orphanage.wealth)}**).`, dis.severity === "kritis" ? "danger" : "normal");
+                        } else {
+                            player.money = roundMoney(player.money - totalEstLoss);
+                            addLog(`🏥 **PENGOBATAN (${dis.name.toUpperCase()}):** Kamu menjalani perawatan **${dis.name}** (${dis.severity}). Total kerugian biaya medis + produktivitas: **-${formatShortJuta(totalEstLoss)}** (${coverageLabel}).`, dis.severity === "kritis" ? "danger" : "normal");
+                        }
+
+                        const finalDrop = Math.max(2, Math.round(dis.healthDrop * 0.55));
+                        modifyStats({ health: -finalDrop, happy: -randInt(2, 6) });
+                        if (dis.insuranceClause && hasVip) {
+                            triggerCriticalIllnessBenefit(`Klausul Penyakit Kritis: ${dis.name}`);
+                        }
+                        checkDeathConditions();
+                    }
+                },
+                {
+                    text: `🌿 Tahan & Obat Warung Saja (Hemat Medis • Risiko Kesehatan Drop Parah!)`,
+                    fn: () => {
+                        if (!isChildMedical) player.money = roundMoney(player.money - prodLoss);
+                        const heavyDrop = Math.round(dis.healthDrop * 1.45);
+                        modifyStats({ health: -heavyDrop, happy: -randInt(5, 10) });
+                        addLog(`⚠️ **ABAIKAN PENGOBATAN (${dis.name}):** Hanya minum obat warung untuk menghemat biaya RS. Kesehatanmu merosot tajam (**-${heavyDrop}%**)!`, "danger");
+                        checkDeathConditions();
+                    }
+                }
+            ],
+            "🏥 EVENT PENYAKIT & KLAUSUL ASURANSI"
+        );
+        return true;
+    }
+
+    function attemptMurderNpc(targetType, targetIdx = 0) {
+        if (!player || !player.alive || player.inJail) return;
+        if (player.age < 15) {
+            showToast("Minimal berusia 15 tahun untuk melakukan tindakan kriminal berat!");
+            return;
+        }
+        let target = null;
+        let returnTab = "teman";
+        if (targetType === "parent") { target = player.parents[targetIdx]; returnTab = "ortu"; }
+        else if (targetType === "sibling") { target = player.siblings[targetIdx]; returnTab = "saudara"; }
+        else if (targetType === "partner") { target = player.partner; returnTab = "pasangan"; }
+        else if (targetType === "friend") { target = player.friends[targetIdx]; returnTab = "teman"; }
+        else if (targetType === "inlaws") { target = player.inLaws; returnTab = "ortu"; }
+        else if (targetType === "expartner") { target = player.exPartners[targetIdx]; returnTab = "mantan"; }
+
+        if (!target) return;
+
+        showPopupEvent(
+            "🔪",
+            `Percobaan Pembunuhan terhadap ${target.name}`,
+            `⚠️ <b>PERINGATAN KRIMINAL BERAT:</b> Kamu berencana melakukan percobaan pembunuhan terhadap <b>${target.name}</b>.<br>Jika gagal atau tertangkap saksi/polisi, ancaman hukumannya adalah penjara <b>10–20 tahun</b>! Pilih metode:`,
+            [
+                {
+                    text: "🧪 Racun Makanan Diam-Diam (Peluang Berhasil 45% • Risiko Ketahuan 45%)",
+                    fn: () => executeMurderAttempt(targetType, targetIdx, target, returnTab, "Racun Makanan", 0.45, 0.45)
+                },
+                {
+                    text: "🚗 Tabrak Lari di Jalan Sepi (Peluang Berhasil 55% • Risiko Ketahuan 60%)",
+                    fn: () => executeMurderAttempt(targetType, targetIdx, target, returnTab, "Tabrak Lari", 0.55, 0.60)
+                },
+                {
+                    text: "🕵️ Sewa Pembunuh Bayaran (Rp 50 Jt • Peluang 70% • Risiko 35%)",
+                    fn: () => {
+                        if (player.money < 50) {
+                            showToast("Saldomu kurang! Sewa pembunuh bayaran butuh Rp 50 Jt.");
+                            return;
+                        }
+                        player.money = roundMoney(player.money - 50);
+                        executeMurderAttempt(targetType, targetIdx, target, returnTab, "Pembunuh Bayaran", 0.70, 0.35);
+                    }
+                },
+                {
+                    text: "✕ Batalkan Niat Jahat Ini",
+                    fn: () => renderKeluargaSheet(returnTab)
+                }
+            ],
+            "🔪 PERCOBAAN PEMBUNUHAN"
+        );
+    }
+
+    function executeMurderAttempt(targetType, targetIdx, target, returnTab, method, successRate, caughtRate) {
+        const succeeded = Math.random() < successRate;
+        const caught = Math.random() < caughtRate;
+
+        if (succeeded) {
+            if (targetType === "parent") {
+                target.alive = false;
+                payLifeInsuranceDeathBenefit(`${target.name} (${target.role})`, false);
+            } else if (targetType === "sibling") {
+                target.alive = false;
+            } else if (targetType === "partner") {
+                payLifeInsuranceDeathBenefit(`${target.name} (Pasangan)`, false);
+                player.partner = null;
+                player.inLaws = null;
+            } else if (targetType === "friend") {
+                player.friends.splice(targetIdx, 1);
+            } else if (targetType === "inlaws") {
+                player.inLaws = null;
+            } else if (targetType === "expartner") {
+                player.exPartners.splice(targetIdx, 1);
+            }
+
+            if (caught) {
+                addLog(`🚨 **PEMBUNUHAN TERBONGKAR (${method.toUpperCase()}):** Aksi kejimu terhadap **${target.name}** terekam CCTV dan dibongkar penyidik kepolisian!`, "danger");
+                triggerCourtTrial(`Pembunuhan Berencana terhadap ${target.name} (${method})`, randInt(12, 20), false);
+            } else {
+                modifyStats({ happy: -5, social: -5 });
+                addLog(`☠️ **AKSI GELAP BERHASIL:** **${target.name}** tewas akibat insiden misterius (${method}) dan polisi tidak menemukan jejak keterlibatanmu.`, "anomaly");
+                showToast(`☠️ ${target.name} tewas — kamu lolos dari penyelidikan.`);
+                renderKeluargaSheet(returnTab);
+            }
+        } else {
+            target.rel = 0;
+            modifyStats({ happy: -10, social: -15 });
+            if (caught || Math.random() < 0.75) {
+                addLog(`🚨 **PERCOBAAN PEMBUNUHAN GAGAL & TERTANGKAP:** **${target.name}** selamat dari aksimu (${method}) dan langsung melaporkanmu ke polisi!`, "danger");
+                triggerCourtTrial(`Percobaan Pembunuhan terhadap ${target.name} (${method})`, randInt(6, 15), false);
+            } else {
+                addLog(`⚠️ **PERCOBAAN PEMBUNUHAN GAGAL:** **${target.name}** berhasil lolos dan kini menaruh dendam kesumat (Relasi 0%) padamu!`, "danger");
+                showToast(`⚠️ Gagal! ${target.name} selamat & menaruh dendam!`);
+                renderKeluargaSheet(returnTab);
+            }
+        }
+        updateUI();
+    }
+
+    function triggerAssassinationOnPlayerEvent() {
+        if (!player || !player.alive || player.inJail || player.age < 15) return false;
+        const enemies = [];
+        (player.friends || []).forEach(f => { if ((f.rel || 50) < 30) enemies.push(f.name); });
+        (player.exPartners || []).forEach(e => { if ((e.rel || 50) < 30) enemies.push(e.name); });
+        (player.siblings || []).forEach(s => { if (s.alive && (s.rel || 50) < 25) enemies.push(s.name); });
+
+        const baseChance = enemies.length > 0 ? 0.08 : 0.025;
+        if (Math.random() > baseChance) return false;
+
+        const attacker = enemies.length > 0
+            ? `${pickRandom(enemies)} (Musuh yang Dendam Padamu)`
+            : "Orang Tak Dikenal / Pembunuh Bayaran Misterius";
+
+        playGameSound("danger");
+        showPopupEvent(
+            "🔪",
+            "AWAS! Percobaan Pembunuhan Terhadapmu!",
+            `Saat pulang sendirian di gang sepi malam hari, <b>${attacker}</b> tiba-tiba menghadangmu dengan senjata tajam dan berusaha menghabisi nyawamu!`,
+            [
+                {
+                    text: "🥋 Melawan & Merebut Senjata (Berisiko Tinggi • Tergantung Kesehatan)",
+                    fn: () => {
+                        const winProb = 0.45 + (player.stats.health / 250);
+                        if (Math.random() < winProb) {
+                            modifyStats({ health: -randInt(6, 14), happy: 4, social: 4 });
+                            addLog(`🥋 **SELAMAT DARI PERCOBAAN PEMBUNUHAN:** Kamu berhasil melumpuhkan serangan **${attacker}** dan menyerahkannya ke polisi meski mengalami luka sayatan ringan!`, "career");
+                            showToast("🥋 Kamu berhasil melumpuhkan penyerang!");
+                        } else {
+                            if (Math.random() < 0.32) {
+                                player.alive = false;
+                                player.stats.health = 0;
+                                addLog(`🪦 **TEWAS DALAM PERCOBAAN PEMBUNUHAN:** Serangan **${attacker}** terlalu mematikan. Kamu tutup usia secara tragis di umur ${player.age} tahun.`, "danger");
+                                showEndGameModal("🪦 Tewas Dibunuh", `Kamu gugur akibat percobaan pembunuhan oleh ${attacker} di usia ${player.age} tahun.`, "🪦");
+                            } else {
+                                modifyStats({ health: -randInt(25, 42), happy: -12 });
+                                addLog(`🚑 **LUKA PARAH AKIBAT PENYERANGAN:** Kamu kalah duel melawan **${attacker}** dan dilarikan warga ke UGD dalam kondisi kritis!`, "danger");
+                                checkDeathConditions();
+                            }
+                        }
+                    }
+                },
+                {
+                    text: "🏃 Lari Sekencang Mungkin & Berteriak Minta Tolong Warga",
+                    fn: () => {
+                        if (Math.random() < 0.72) {
+                            modifyStats({ health: -randInt(2, 6), happy: -4 });
+                            addLog(`🏃 **BERHASIL KABUR:** Kamu lari sekuat tenaga menuju keramaian warga sehingga **${attacker}** melarikan diri!`, "normal");
+                            showToast("🏃 Berhasil kabur dari percobaan pembunuhan!");
+                        } else {
+                            modifyStats({ health: -randInt(18, 30), happy: -10 });
+                            addLog(`🚑 **TERKEJAR & TERLUKA:** Kamu sempat tersandung saat berlari dan terkena sabetan **${attacker}** sebelum warga datang menolong!`, "danger");
+                            checkDeathConditions();
+                        }
+                    }
+                }
+            ],
+            "🚨 PERCOBAAN PEMBUNUHAN"
+        );
+        return true;
+    }
+
+    function interactWithSibling(idx, action) {
+        const sib = player.siblings && player.siblings[idx];
+        if (!sib || !sib.alive) return;
+        if (!canMaintainRelWith(sib)) return;
+        consumeRelQuota(sib);
+
+        if (action === "ngobrol") {
+            const delta = randInt(5, 11);
+            sib.rel = clamp((sib.rel || 65) + delta, 0, 100);
+            modifyStats({ happy: randInt(2, 5) });
+            addLog(`💬 **AKRAB DENGAN SAUDARA:** Kamu mengobrol santai dan nostalgia masa kecil bersama **${sib.name}** (${sib.role}).`, "love");
+            showToast(`Hubungan dengan ${sib.name} makin hangat!`);
+        } else if (action === "berantem") {
+            const delta = -randInt(10, 20);
+            sib.rel = clamp((sib.rel || 65) + delta, 0, 100);
+            modifyStats({ happy: -randInt(3, 7) });
+            addLog(`😠 **CEKCOK DENGAN SAUDARA:** Kamu bertengkar hebat soal urusan rumah tangga & warisan dengan **${sib.name}**!`, "danger");
+            showToast(`Bertengkar dengan ${sib.name}!`);
+        }
+        renderKeluargaSheet("saudara");
+    }
+
     function getSocialMediaAnnualIncome() {
         if (!player || !Array.isArray(player.socialMediaJobs)) return 0;
         return roundMoney(player.socialMediaJobs.reduce((sum, item) => sum + (item.salary || 0), 0));
@@ -3967,8 +4397,13 @@
     // Memperhitungkan: Pasangan Sah, Anak (L/P), Orang Tua (Ayah/Ibu), Adik/Saudara Kandung, Mantan Istri/Suami, & Mantan Mertua
     function calculateInheritanceDistribution() {
         const relObj = getPlayerReligionObj();
-        const assetVal = (player.assets || []).reduce((s, a) => s + (a.price || 0), 0);
-        const totalEstate = Math.max(0, roundMoney(player.money + assetVal));
+        const cashVal = Math.max(0, roundMoney(player.money || 0));
+        const assetVal = roundMoney((player.assets || []).filter(a => a.id !== "asuransi").reduce((s, a) => s + (a.price || 0), 0));
+        const portfolioVal = roundMoney(Object.entries(player.portfolio || {}).reduce((s, [id, h]) => {
+            const p = (player.marketPrices && player.marketPrices[id]) ? player.marketPrices[id] : 1;
+            return s + ((h.units || 0) * p);
+        }, 0));
+        const totalEstate = Math.max(0, roundMoney(cashVal + assetVal + portfolioVal));
         const breakdown = [];
 
         const marriedSpouse = (player.partner && player.partner.status === "Menikah") ? player.partner : null;
@@ -4145,6 +4580,9 @@
 
         return {
             religion: relObj,
+            cashVal,
+            assetVal,
+            portfolioVal,
             totalEstate,
             breakdown
         };
@@ -4720,6 +5158,87 @@
         `;
     }
 
+
+    function rollParentInsurance(family) {
+        const fid = family ? family.id : "sandwich";
+        const r = Math.random();
+        if (fid === "sandwich" || fid === "buruh") {
+            if (r < 0.35) return { id: "none", icon: "❌", name: "Tanpa BPJS / Asuransi Ortu", coverage: 0 };
+            if (r < 0.80) return { id: "bpjs3", icon: "🏥", name: "BPJS Kesehatan Ortu (Kelas 3)", coverage: 0.75 };
+            return { id: "bpjs2", icon: "🏥", name: "BPJS Kesehatan Ortu (Kelas 2)", coverage: 0.85 };
+        }
+        if (fid === "asn") {
+            if (r < 0.15) return { id: "bpjs2", icon: "🏥", name: "BPJS Kesehatan Ortu (Kelas 2)", coverage: 0.85 };
+            if (r < 0.85) return { id: "bpjs1", icon: "🏥", name: "BPJS Kesehatan Ortu (Kelas 1)", coverage: 0.92 };
+            return { id: "swasta", icon: "🛡️", name: "Asuransi Kesehatan Swasta Ortu", coverage: 1.0 };
+        }
+        if (fid === "umkm") {
+            if (r < 0.20) return { id: "none", icon: "❌", name: "Tanpa BPJS / Asuransi Ortu", coverage: 0 };
+            if (r < 0.50) return { id: "bpjs3", icon: "🏥", name: "BPJS Kesehatan Ortu (Kelas 3)", coverage: 0.75 };
+            if (r < 0.80) return { id: "bpjs2", icon: "🏥", name: "BPJS Kesehatan Ortu (Kelas 2)", coverage: 0.85 };
+            return { id: "bpjs1", icon: "🏥", name: "BPJS Kesehatan Ortu (Kelas 1)", coverage: 0.92 };
+        }
+        // pejabat / sultan
+        if (r < 0.35) return { id: "bpjs1", icon: "🏥", name: "BPJS Kesehatan Ortu (Kelas 1)", coverage: 0.92 };
+        return { id: "swasta_vip", icon: "🛡️", name: "Asuransi Kesehatan VIP Keluarga", coverage: 1.0 };
+    }
+
+    function createOrphanageData(cityName) {
+        const names = [
+            "Yayasan Panti Asuhan Kasih Nusantara",
+            "Yayasan Panti Asuhan Harapan Bangsa",
+            "Yayasan Panti Asuhan Cahaya Hati",
+            "Yayasan Panti Asuhan Tunas Mulia",
+            "Yayasan Panti Asuhan Pelita +62"
+        ];
+        const r = Math.random();
+        let ins;
+        if (r < 0.45) {
+            ins = { id: "bpjs_pbi", icon: "🏥", name: "BPJS PBI / Kesehatan Yayasan", coverage: 0.80 };
+        } else if (r < 0.75) {
+            ins = { id: "asuransi_yayasan", icon: "🛡️", name: "Asuransi Kesehatan Donatur Yayasan", coverage: 0.95 };
+        } else {
+            ins = { id: "none", icon: "❌", name: "Tanpa Asuransi Yayasan (Kas Mandiri)", coverage: 0 };
+        }
+        const caretakerName = Math.random() < 0.5
+            ? `Ibu Pengasuh ${pickRandom(FEMALE_NAMES)}`
+            : `Bapak Pengurus ${pickRandom(MALE_NAMES)}`;
+        return {
+            name: `${pickRandom(names)} (${cityName})`,
+            caretaker: caretakerName,
+            wealth: roundMoney(randInt(45, 190)),
+            annualGrant: roundMoney(randInt(18, 45)),
+            insurance: ins
+        };
+    }
+
+    function createInitialParentsByOrigin(family, lastName, originType) {
+        if (originType === "orphanage") return [];
+        const fullParents = createInitialParents(family, lastName);
+        if (originType === "complete") return fullParents;
+        // single_parent: 50% Ayah Tunggal, 50% Ibu Tunggal
+        const keepDad = Math.random() < 0.5;
+        const chosen = keepDad ? fullParents[0] : fullParents[1];
+        chosen.role = keepDad ? `Ayah Tunggal (${family.name})` : `Ibu Tunggal (${family.name})`;
+        chosen.wealth = roundMoney((fullParents[0].wealth + fullParents[1].wealth) * 0.65);
+        chosen.income = roundMoney(family.parentIncome * 0.70);
+        return [chosen];
+    }
+
+    function deductChildMedicalFromParents(amount) {
+        const aliveParents = (player.parents || []).filter(p => p.alive);
+        if (aliveParents.length === 0 || amount <= 0) return;
+        if (aliveParents.length === 1) {
+            aliveParents[0].wealth = roundMoney((aliveParents[0].wealth || 0) - amount);
+            return;
+        }
+        // Potong proporsional (60/40 atau merata dari kedua orang tua)
+        const share0 = roundMoney(amount * 0.5);
+        const share1 = roundMoney(amount - share0);
+        aliveParents[0].wealth = roundMoney((aliveParents[0].wealth || 0) - share0);
+        aliveParents[1].wealth = roundMoney((aliveParents[1].wealth || 0) - share1);
+    }
+
     function createInitialParents(family, lastName) {
         const dadFirst = pickRandom(MALE_NAMES);
         const momFirst = pickRandom(FEMALE_NAMES);
@@ -4878,6 +5397,9 @@
         if (targetType === "parent") {
             target = player.parents[targetIdx];
             returnTab = "ortu";
+        } else if (targetType === "sibling") {
+            target = player.siblings[targetIdx];
+            returnTab = "saudara";
         } else if (targetType === "inlaws") {
             target = player.inLaws;
             returnTab = "ortu";
@@ -5016,6 +5538,9 @@
         if (targetType === "parent") {
             target = player.parents[targetIdx];
             returnTab = "ortu";
+        } else if (targetType === "sibling") {
+            target = player.siblings[targetIdx];
+            returnTab = "saudara";
         } else if (targetType === "inlaws") {
             target = player.inLaws;
             returnTab = "ortu";
@@ -5264,6 +5789,7 @@
 
     function isParentEligibleForKip() {
         if (!player) return false;
+        if (player.birthOrigin === "orphanage" || (player.parents || []).filter(p => p.alive).length === 0) return true;
         const aliveParents = (player.parents || []).filter(p => p.alive);
         const totalParentIncome = aliveParents.reduce((s, p) => s + (p.income || 0), 0);
         const totalParentWealth = aliveParents.reduce((s, p) => s + (p.wealth || 0), 0);
@@ -5471,10 +5997,37 @@
         const relSelectEl = document.getElementById("selectBirthReligion");
         const chosenRelId = relSelectEl ? relSelectEl.value : "random";
         const chosenReligion = chosenRelId === "random" ? pickRandom(RELIGIONS) : (RELIGIONS.find(r => r.id === chosenRelId) || RELIGIONS[0]);
-        const initialParents = createInitialParents(family, lastName);
-        const initialSiblings = createInitialSiblings(lastName, family);
-        const combinedParentWealth = roundMoney(initialParents[0].wealth + initialParents[1].wealth);
-        const eligibleKip = family.id === "sandwich" || family.id === "buruh" || family.parentIncome === 0;
+
+        const originSelectEl = document.getElementById("selectBirthFamilyOrigin");
+        let birthOrigin = originSelectEl ? originSelectEl.value : "random";
+        if (birthOrigin === "random") {
+            const ro = Math.random();
+            if (ro < 0.65) birthOrigin = "complete";
+            else if (ro < 0.88) birthOrigin = "single_parent";
+            else birthOrigin = "orphanage";
+        }
+
+        const effectiveFamily = birthOrigin === "orphanage"
+            ? {
+                id: "orphanage",
+                name: "Anak Panti Asuhan",
+                badge: "🏠 Panti Asuhan",
+                weight: 0,
+                startMoney: 0,
+                allowance: 0.2,
+                socialBoost: -8,
+                wealthRange: [0, 0],
+                parentIncome: 0,
+                sandwichBurden: 0
+            }
+            : family;
+
+        const initialParents = createInitialParentsByOrigin(effectiveFamily, lastName, birthOrigin);
+        const initialSiblings = birthOrigin === "orphanage" ? [] : createInitialSiblings(lastName, effectiveFamily);
+        const orphanageObj = birthOrigin === "orphanage" ? createOrphanageData(city.name) : null;
+        const parentInsuranceObj = birthOrigin === "orphanage" ? null : rollParentInsurance(effectiveFamily);
+        const combinedParentWealth = roundMoney(initialParents.reduce((s, p) => s + (p.wealth || 0), 0));
+        const eligibleKip = birthOrigin === "orphanage" || effectiveFamily.id === "sandwich" || effectiveFamily.id === "buruh" || effectiveFamily.parentIncome === 0;
 
         player = {
             name: finalName,
@@ -5482,9 +6035,12 @@
             genderIcon: isMale ? "♂️" : "♀️",
             age: 0,
             city: city,
-            family: family,
+            family: effectiveFamily,
+            birthOrigin: birthOrigin,
+            parentInsurance: parentInsuranceObj,
+            orphanage: orphanageObj,
             trait: trait,
-            money: family.startMoney,
+            money: effectiveFamily.startMoney,
             stats: rngStats,
             kipActive: eligibleKip,
             kipRevoked: false,
@@ -5553,8 +6109,18 @@
         document.getElementById("birthModal").classList.add("hidden");
         document.getElementById("lifeLog").innerHTML = "";
 
-        addLog(`👶 **AKTA KELAHIRAN +62:** Kamu lahir sebagai **${player.name}** (${player.gender} • **${getBirthOrderLabel(initialSiblings)}**) di **${player.city.name}** dari kasta **${player.family.name}** (${player.family.badge}).`, "birth");
-        addLog(`👨‍👩‍👦 **KONDISI EKONOMI ORANG TUA:** Ayah (**${player.parents[0].name}**) & Ibu (**${player.parents[1].name}**) memiliki total tabungan keluarga **${formatShortJuta(combinedParentWealth)}** (Penghasilan Ortu: Rp ${player.family.parentIncome} Jt/thn). ${player.kipActive ? '💳 Karena orang tua kurang mampu/tanpa pekerjaan tetap, kamu terdaftar sebagai penerima **Kartu Indonesia Pintar (KIP)** untuk sekolah gratis SD–SMA!' : ''}`, "normal");
+        const originText = birthOrigin === "complete"
+            ? "Orang Tua Lengkap (Ayah & Ibu)"
+            : (birthOrigin === "single_parent" ? "Satu Orang Tua (Single Parent)" : "Tanpa Orang Tua (Panti Asuhan)");
+        addLog(`👶 **AKTA KELAHIRAN +62:** Kamu lahir sebagai **${player.name}** (${player.gender} • **${originText}** • **${getBirthOrderLabel(initialSiblings)}**) di **${player.city.name}** (${player.family.badge}).`, "birth");
+        if (birthOrigin === "orphanage" && player.orphanage) {
+            addLog(`🏠 **PANTI ASUHAN:** Kamu dibesarkan di **${player.orphanage.name}** bersama **${player.orphanage.caretaker}**. Saldo Kas Yayasan: **${formatShortJuta(player.orphanage.wealth)}** • Proteksi Medis: **${player.orphanage.insurance.icon} ${player.orphanage.insurance.name}** (${Math.round(player.orphanage.insurance.coverage * 100)}% cover). 💳 Kamu terdaftar penerima **Kartu Indonesia Pintar (KIP)**!`, "normal");
+        } else if (birthOrigin === "single_parent" && player.parents.length === 1) {
+            const p0 = player.parents[0];
+            addLog(`👤 **KELUARGA SINGLE PARENT:** Kamu dibesarkan seorang diri oleh **${p0.name}** (${p0.role}) dengan tabungan **${formatShortJuta(combinedParentWealth)}** • Proteksi Medis Ortu: **${player.parentInsurance.icon} ${player.parentInsurance.name}** (${Math.round(player.parentInsurance.coverage * 100)}% cover). ${player.kipActive ? '💳 Kamu terdaftar penerima **Kartu Indonesia Pintar (KIP)**!' : ''}`, "normal");
+        } else if (player.parents.length >= 2) {
+            addLog(`👨‍👩‍👦 **KONDISI EKONOMI ORANG TUA:** Ayah (**${player.parents[0].name}**) & Ibu (**${player.parents[1].name}**) memiliki total tabungan keluarga **${formatShortJuta(combinedParentWealth)}** (Penghasilan Ortu: Rp ${player.family.parentIncome} Jt/thn) • Proteksi Medis Ortu: **${player.parentInsurance.icon} ${player.parentInsurance.name}** (${Math.round(player.parentInsurance.coverage * 100)}% cover). ${player.kipActive ? '💳 Kamu terdaftar penerima **Kartu Indonesia Pintar (KIP)**!' : ''}`, "normal");
+        }
         addLog(`🎲 **TAKDIR AWAL (100% RNG):** Kamu lahir membawa karakteristik unik **${player.trait.icon} ${player.trait.name}**. Amati perkembangan ke-5 bar parameter hidupmu di bagian bawah layar!`, "normal");
 
         updateUI();
@@ -5634,6 +6200,8 @@
             ${player.wearsGlasses ? `<span class="mini-badge" style="color:#7c2d12; background:#ffedd5; border-color:#fb923c;">👓 Kacamata (-${player.eyeMinus.toFixed(2)})</span>` : ''}
             ${ownedSims.length > 0 ? `<span class="mini-badge" style="color:#065f46; background:#d1fae5; border-color:#34d399;">🪪 SIM ${ownedSims.join(", ")}</span>` : ''}
             <span class="mini-badge">${player.family.badge}</span>
+            ${player.age <= 12 && player.orphanage ? `<span class="mini-badge" style="color:#0369a1; background:#e0f2fe;">${player.orphanage.insurance.icon} ${player.orphanage.insurance.name}</span>` : ''}
+            ${player.age <= 12 && !player.orphanage && player.parentInsurance ? `<span class="mini-badge" style="color:#0369a1; background:#e0f2fe;">${player.parentInsurance.icon} ${player.parentInsurance.name}</span>` : ''}
             <span class="mini-badge" style="color:#92400e; background:#fef3c7;">${player.trait.icon} ${player.trait.name}</span>
         `;
         if (player.age >= 6 && player.age <= 17) {
@@ -5958,6 +6526,9 @@
                 sib.relCountThisYear = 0;
                 if (sib.alive) sib.age += 1;
             });
+        }
+        if (player.orphanage) {
+            player.orphanage.wealth = roundMoney((player.orphanage.wealth || 0) + (player.orphanage.annualGrant || 20));
         }
 
         if (player.inLaws) {
@@ -6294,8 +6865,10 @@
         if (checkDeathConditions()) return;
 
         if (!ppdbTriggered) {
-            // 0. Cek Event Profesi Khusus Negatif (Risiko 1-5 Thn) & Media Sosial
-            const negSocTriggered = triggerNegativeAndSocialEvents();
+            // 0. Cek Percobaan Pembunuhan ke Player & Event 72 Penyakit (Ringan s/d Kritis Klausul Asuransi)
+            const assassTriggered = triggerAssassinationOnPlayerEvent();
+            const diseaseTriggered = !assassTriggered ? triggerDiseaseEvent() : false;
+            const negSocTriggered = (!assassTriggered && !diseaseTriggered) ? triggerNegativeAndSocialEvents() : true;
             if (!negSocTriggered) {
                 // 1. Cek Event Kematian Mendadak (Diri Sendiri, Ortu, Pasangan, Anak, Teman/Kolega)
                 const suddenTriggered = triggerSuddenDeathEvents();
@@ -6351,14 +6924,59 @@
         openModal(activeBitlifeHub);
     }
 
-    function openSubFeature(hubOrigin, fnName, arg) {
+    function openSubFeature(hubOrigin, fnName, arg, customTitle = "", customSub = "", customIcon = "") {
         activeBitlifeHub = hubOrigin;
         const tabsEl = document.getElementById("sheetTabs");
         const bodyEl = document.getElementById("sheetBody");
         const backBtn = document.getElementById("sheetBackBtn");
-        if (tabsEl) tabsEl.classList.remove("hidden");
+        const iconEl = document.getElementById("sheetIcon");
+        const titleEl = document.getElementById("sheetTitle");
+        const subEl = document.getElementById("sheetSub");
+
+        // Pure BitLife UI: selalu sembunyikan bar tab horizontal original agar tidak geser ke UI lama
+        if (tabsEl) {
+            tabsEl.innerHTML = "";
+            tabsEl.classList.add("hidden");
+        }
         if (bodyEl) bodyEl.classList.add("padded-cards");
-        if (backBtn) backBtn.classList.remove("hidden");
+        if (backBtn) {
+            if (hubOrigin) backBtn.classList.remove("hidden");
+            else backBtn.classList.add("hidden");
+        }
+
+        const titleMap = {
+            "karir:kuliah": ["🎓", "SEKOLAH & UNIVERSITAS", `Jenjang pendidikan & kampus di ${player.city.name}`],
+            "karir:sim": ["🪪", "UJIAN SIM (A / C / B1 / B2)", "Satpas Polri — 10 soal unik per SIM (Pass ≥80%)"],
+            "karir:pejabat": ["🏛️", "PEJABAT POLITIK & PARTAI", "Karir politik dari Ketua RT hingga Presiden RI"],
+            "karir:bintang": ["🌟", "KARIR BINTANG", "Atlet, Model, Penyanyi & Artis Galeri"],
+            "karir:informal_resilient": ["📱", "MEDSOS, INFORMAL & GELAP", "Kreator medsos, usaha informal & jalur berisiko"],
+            "karir:kerja": ["💼", "LOWONGAN KERJA & DRIVER", "12 kerja kota, driver SIM & profesi bebas kacamata"],
+            "karir:aset": ["🏠", "ASET, INVESTASI & BISNIS", "Saham, Crypto, Kendaraan, Properti & Asuransi VIP"],
+            "karir:pajak": ["🧾", "PAJAK & CORETAX DJP", "Ringkasan PTKP, PPh 21, PKB & PBB"],
+            "karir:kota": ["🏙️", "MERANTAU / PINDAH KOTA", "Pindah domisili antar 8 kota Nusantara"],
+            "keluarga:ortu": ["👨‍👩‍👦", "ORANG TUA & MERTUA", "Interaksi, hadiah, transfer & relasi orang tua"],
+            "keluarga:saudara": ["🧑‍🤝‍🧑", "SAUDARA KANDUNG (KAKAK/ADIK)", "Interaksi dengan kakak & adik kandung"],
+            "keluarga:pasangan": ["💑", "PASANGAN", "Komunikasi, kencan, nikah & dinamika pasangan"],
+            "keluarga:anak": ["👶", "ANAK & PENDIDIKAN", "Kelola tumbuh kembang, KIP & karir anak"],
+            "keluarga:teman": ["🤝", "TEMAN & REKAN", "Teman sekolah, kuliah & rekan kerja"],
+            "keluarga:pets": ["🐾", "HEWAN PELIHARAAN", "Rawat & adopsi hewan kesayangan"],
+            "keluarga:mantan": ["💔", "MANTAN & EX-MERTUA", "Riwayat hubungan masa lalu"],
+            "keluarga:clubbing": ["🪩", "CINTA & CLUBBING MALAM", "Cari pasangan & kehidupan malam (17+)"],
+            "upgrade:kesehatan": ["🏥", "DOKTER, BPJS & 72 PENYAKIT", "BPJS, RS Luar Negeri & Klausul 72 Penyakit"],
+            "hukum:": ["⚖️", "KRIMINAL & HUKUM +62", "Aksi ilegal & Pengadilan Negeri +62"],
+            "imigrasi:": ["✈️", "IMIGRASI (#KABURAJADULU)", "Pindah kewarganegaraan (> Rp 99.999 Jt)"],
+            "hof:": ["🏆", "HALL OF FAME & LEGASI", "Catatan rekor & batu nisan generasi terdahulu"]
+        };
+        const mapped = titleMap[`${fnName}:${arg}`];
+        if (mapped) {
+            if (iconEl) iconEl.textContent = customIcon || mapped[0];
+            if (titleEl) titleEl.textContent = customTitle || mapped[1];
+            if (subEl) subEl.textContent = customSub || mapped[2];
+        } else if (fnName === "upgrade") {
+            if (iconEl) iconEl.textContent = "🧘";
+            if (titleEl) titleEl.textContent = "MIND & BODY (UPGRADE DIRI)";
+            if (subEl) subEl.textContent = "Pengembangan diri 100% RNG sesuai fase usia";
+        }
 
         if (fnName === "karir") {
             currentModalType = "karir";
@@ -6371,17 +6989,17 @@
             renderUpgradeSheet(arg);
         } else if (fnName === "hukum") {
             currentModalType = "hukum";
-            if (tabsEl) tabsEl.classList.add("hidden");
             renderHukumSheet();
         } else if (fnName === "imigrasi") {
             currentModalType = "imigrasi";
-            if (tabsEl) tabsEl.classList.add("hidden");
             renderImigrasiSheet();
         } else if (fnName === "hof") {
             currentModalType = "hof";
-            if (tabsEl) tabsEl.classList.add("hidden");
             renderHallOfFameSheet();
         }
+
+        // Pastikan tabsEl tetap tersembunyi setelah render*Sheet() dipanggil
+        if (tabsEl) tabsEl.classList.add("hidden");
     }
 
     function openBitlifeSystemMenu() {
@@ -6550,8 +7168,16 @@
             <button class="bl-row" onclick="openSubFeature('relasi', 'keluarga', 'ortu')">
                 <div class="bl-row-icon">👨‍👩‍👦</div>
                 <div class="bl-row-main">
-                    <div class="bl-row-title">Orang Tua & Mertua</div>
-                    <div class="bl-row-sub">${aliveParents} orang tua masih hidup${player.inLaws ? ` • Mertua: ${player.inLaws.name}` : ''}</div>
+                    <div class="bl-row-title">${player.orphanage && aliveParents === 0 ? 'Panti Asuhan & Mertua' : 'Orang Tua & Mertua'}</div>
+                    <div class="bl-row-sub">${player.orphanage && aliveParents === 0 ? `🏠 ${player.orphanage.name} (Kas ${formatShortJuta(player.orphanage.wealth)})` : `${aliveParents} orang tua masih hidup`}${player.inLaws ? ` • Mertua: ${player.inLaws.name}` : ''}</div>
+                </div>
+                <span class="bl-row-chevron">›</span>
+            </button>
+            <button class="bl-row" onclick="openSubFeature('relasi', 'keluarga', 'saudara')">
+                <div class="bl-row-icon">🧑‍🤝‍🧑</div>
+                <div class="bl-row-main">
+                    <div class="bl-row-title">Saudara Kandung (${(player.siblings || []).filter(s => s.alive).length})</div>
+                    <div class="bl-row-sub">${(player.siblings || []).length > 0 ? getBirthOrderLabel(player.siblings) : 'Anak Tunggal (Tidak punya kakak/adik)'}</div>
                 </div>
                 <span class="bl-row-chevron">›</span>
             </button>
@@ -8564,6 +9190,24 @@
                 ${hasVipLife ? `<button class="btn-action btn-rose" onclick="cancelLifeInsurancePolicy()">❌ Cancel Polis Asuransi Jiwa VIP</button>` : ''}
             `;
             bodyEl.appendChild(rsCard);
+
+            const hist = player.diseaseHistory || [];
+            const disCard = document.createElement("div");
+            disCard.className = "item-card";
+            disCard.style.borderColor = "#0284c7";
+            const histHtml = hist.length > 0
+                ? hist.map(h => `• Usia ${h.age} Thn: <b>${h.name}</b> (${h.severity.toUpperCase()}) — Kerugian Bersih: <b style="color:#dc2626;">-${formatShortJuta(h.totalEstLoss)}</b>`).join("<br>")
+                : "Belum pernah tercatat sakit serius.";
+            const sampleCrit = DISEASES_72.filter(d => d.insuranceClause).slice(0, 10).map(d => `${d.name} (Est. Rp ${d.medicalCost} Jt)`).join(", ");
+            disCard.innerHTML = `
+                <div class="item-title">📋 Klausul 72 Penyakit Asuransi & Riwayat Medis</div>
+                <div class="item-desc">
+                    Total katalog aktif: <b>72 Penyakit</b> (15 Ringan • 17 Sedang • <b>40 Penyakit Kritis sesuai Klausul Asuransi Jiwa VIP</b>).<br>
+                    Contoh Klausul Kritis: ${sampleCrit}, dll.<br><br>
+                    <b>Riwayat Penyakitmu (${hist.length}):</b><br>${histHtml}
+                </div>
+            `;
+            bodyEl.appendChild(disCard);
         }
     }
 
@@ -8727,6 +9371,46 @@
         bodyEl.innerHTML = "";
 
         // =====================================================
+        // TAB SAUDARA KANDUNG (KAKAK & ADIK)
+        // =====================================================
+        if (tab === "saudara") {
+            const sibs = player.siblings || [];
+            if (sibs.length === 0) {
+                bodyEl.innerHTML = `<div class="item-card"><div class="item-title">🧑‍🤝‍🧑 Anak Tunggal</div><div class="item-desc">Kamu adalah anak tunggal dan tidak memiliki kakak maupun adik kandung.</div></div>`;
+                return;
+            }
+            sibs.forEach((sib, idx) => {
+                const card = document.createElement("div");
+                card.className = "item-card";
+                if (!sib.alive) {
+                    card.innerHTML = `<div class="item-title">🕊️ Alm. ${sib.name} (${sib.role})</div><div class="item-desc">Telah berpulang di usia ${sib.age} tahun.</div>`;
+                    bodyEl.appendChild(card);
+                    return;
+                }
+                card.innerHTML = `
+                    <div class="item-row">
+                        <div>
+                            <span style="font-size:10px; font-weight:900; color:#0284c7;">${sib.role.toUpperCase()}</span>
+                            <div class="item-title" style="font-size:14px; margin-top:2px;">${sib.name} ${sib.genderIcon} (${sib.age} Thn)</div>
+                            <div style="font-size:10.5px; color:#64748b;">Saldo: <b>${formatShortJuta(sib.wealth || 0)}</b></div>
+                        </div>
+                    </div>
+                    ${renderRelBarHtml(sib.rel || 65, "Hubungan Persaudaraan")}
+                    ${sib.stats ? renderMiniStatsHtml(sib.stats) : ''}
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:4px;">
+                        <button class="btn-action btn-primary" onclick="interactWithSibling(${idx}, 'ngobrol')">💬 Ngobrol & Main</button>
+                        <button class="btn-action btn-gold" onclick="openGiftModal('sibling', ${idx})">🎁 Beri Hadiah</button>
+                        <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('sibling', ${idx})">💸 Kasih Uang</button>
+                        <button class="btn-action btn-dark" onclick="interactWithSibling(${idx}, 'berantem')">😠 Cekcok</button>
+                        <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc('sibling', ${idx})">🔪 Percobaan Pembunuhan</button>
+                    </div>
+                `;
+                bodyEl.appendChild(card);
+            });
+            return;
+        }
+
+        // =====================================================
         // TAB 1: TEMAN SEKOLAH, KULIAH & KERJA
         // =====================================================
         if (tab === "teman") {
@@ -8774,6 +9458,7 @@
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:2px;">
                         <button class="btn-action btn-gold" onclick="openGiftModal('friend', ${idx})">🎁 Beri Hadiah / Maintain<br><span style="font-size:9px; font-weight:600;">Pilih Murah s/d Sultan</span></button>
                         <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('friend', ${idx})">💸 Kasih Uang (Nominal Bebas)<br><span style="font-size:9px; font-weight:600;">Tambah Saldo Teman</span></button>
+                        <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc(\'friend\', ${idx})">🔪 Percobaan Pembunuhan</button>
                         <button class="btn-action btn-primary" onclick="friendAction(${idx}, 'ordal')">🤝 Minta Bantuan Ordal/Uang<br><span style="font-size:9px; font-weight:600;">Cek Saldo & Relasi Teman</span></button>
                         ${isEligibleRomanticPartner(fr)
                             ? `<button class="btn-action btn-pink" data-testid="friend-date-button-${idx}" onclick="friendAction(${idx}, 'date')">💘 Ajak Jadian Pacar<br><span style="font-size:9px; font-weight:600;">Min. Usia 17 Thn</span></button>`
@@ -8803,6 +9488,35 @@
             `;
             bodyEl.appendChild(quotaInfo);
 
+            // Info Asuransi/BPJS Orang Tua atau Yayasan Panti Asuhan (Tanggungan Medis Usia 0-12 Thn)
+            if (player.orphanage) {
+                const yCard = document.createElement("div");
+                yCard.className = "item-card";
+                yCard.style.borderColor = "#0284c7";
+                yCard.innerHTML = `
+                    <div class="item-title">🏠 ${player.orphanage.name}</div>
+                    <div class="item-desc">
+                        • Pengurus Panti: <b>${player.orphanage.caretaker}</b><br>
+                        • Saldo Kas Yayasan: <b style="color:#15803d;">${formatShortJuta(player.orphanage.wealth || 0)}</b> (Donasi: +Rp ${player.orphanage.annualGrant || 20} Jt/thn)<br>
+                        • Asuransi Yayasan: <b>${player.orphanage.insurance.icon} ${player.orphanage.insurance.name} (${Math.round(player.orphanage.insurance.coverage * 100)}% cover)</b><br>
+                        • <i>Biaya pengobatan saat usia 0–12 tahun otomatis ditanggung asuransi & kas yayasan.</i>
+                    </div>
+                `;
+                bodyEl.appendChild(yCard);
+            } else if (player.parentInsurance) {
+                const pInsCard = document.createElement("div");
+                pInsCard.className = "item-card";
+                pInsCard.style.borderColor = "#0284c7";
+                pInsCard.innerHTML = `
+                    <div class="item-title">${player.parentInsurance.icon} Proteksi Kesehatan Orang Tua</div>
+                    <div class="item-desc">
+                        Status: <b>${player.parentInsurance.name}</b> (Cover medis: <b>${Math.round(player.parentInsurance.coverage * 100)}%</b>)<br>
+                        <i>Saat usia 0–12 tahun, biaya sakit langsung memotong saldo orang tua setelah dikurangi tanggungan BPJS/asuransi ini.</i>
+                    </div>
+                `;
+                bodyEl.appendChild(pInsCard);
+            }
+
             // Daftar Orang Tua Kandung
             player.parents.forEach((pr, idx) => {
                 const card = document.createElement("div");
@@ -8827,6 +9541,7 @@
                         ${renderRelBarHtml(pr.rel, "Hubungan Bakti Anak")}
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:2px;">
                             <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('parent', ${idx})">💸 Kasih Uang (Nominal Bebas)<br><span style="font-size:9px; font-weight:600;">Tambah Saldo & Aset Ortu</span></button>
+                        <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc(\'parent\', ${idx})">🔪 Percobaan Pembunuhan</button>
                             <button class="btn-action btn-gold" onclick="openGiftModal('parent', ${idx})">🎁 Beri Hadiah Barang<br><span style="font-size:9px; font-weight:600;">Pilih Murah s/d Sultan</span></button>
                             <button class="btn-action btn-primary" onclick="parentAction(${idx}, 'visit')">🙏 Sungkem & Silaturahmi<br><span style="font-size:9px; font-weight:600;">Gratis • 100% RNG</span></button>
                             <button class="btn-action btn-dark" onclick="parentAction(${idx}, 'ask_money')">🤲 Minta Bantuan Uang<br><span style="font-size:9px; font-weight:600;">Sesuai Saldo Aktual Ortu</span></button>
@@ -8873,6 +9588,7 @@
                     ${renderRelBarHtml(il.rel, "Restu & Hubungan Mertua")}
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:2px;">
                         <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('inlaws', 0)">💸 Kasih Uang ke Mertua<br><span style="font-size:9px; font-weight:600;">Tentukan Nominal Bebas</span></button>
+                        <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc(\'inlaws\', 0)">🔪 Percobaan Pembunuhan</button>
                         <button class="btn-action btn-gold" onclick="openGiftModal('inlaws', 0)">🎁 Bawakan Hadiah Mertua<br><span style="font-size:9px; font-weight:600;">Pilih Murah s/d Sultan</span></button>
                         <button class="btn-action btn-primary" onclick="inLawAction('ask_capital')">🏦 Minta Suntikan Modal<br><span style="font-size:9px; font-weight:600;">Wajib Sudah Menikah Resmi</span></button>
                         <button class="btn-action btn-dark" onclick="inLawAction('visit')">🍵 Kunjungi Rumah Mertua<br><span style="font-size:9px; font-weight:600;">Gratis • 100% RNG</span></button>
@@ -8967,6 +9683,7 @@
                 </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:4px;">
                     <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('partner', 0)">💸 Kasih Uang ke Pasangan<br><span style="font-size:9px; font-weight:600;">Tentukan Nominal Bebas</span></button>
+                        <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc(\'partner\', 0)">🔪 Percobaan Pembunuhan</button>
                     <button class="btn-action btn-gold" onclick="openGiftModal('partner', 0)">🎁 Beri Hadiah Romantis<br><span style="font-size:9px; font-weight:600;">Pilih Murah s/d Sultan</span></button>
                     <button class="btn-action btn-pink" onclick="partnerQualityActivity('date')">🍽️ Quality Time & Kencan<br><span style="font-size:9px; font-weight:600;">Rp 1 Jt • Hasil 100% RNG</span></button>
                     <button class="btn-action btn-primary" onclick="partnerQualityActivity('glowup')">✨ Belikan Skincare & Gym<br><span style="font-size:9px; font-weight:600;">Rp 4 Jt • Upgrade Pasangan</span></button>
@@ -9202,6 +9919,7 @@
                     ${renderRelBarHtml(ex.rel, "Hubungan dgn Mantan")}
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:4px;">
                         <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('expartner', ${idx})">💸 Kirim Uang Tunjangan<br><span style="font-size:9px; font-weight:600;">Tentukan Nominal Bebas</span></button>
+                        <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc(\'expartner\', ${idx})">🔪 Percobaan Pembunuhan</button>
                         <button class="btn-action btn-gold" onclick="openGiftModal('expartner', ${idx})">🎁 Kirim Hadiah Damai<br><span style="font-size:9px; font-weight:600;">Redam Dendam Mantan</span></button>
                         <button class="btn-action btn-pink" style="grid-column: span 2;" onclick="exPartnerAction(${idx}, 'clbk')">💘 Ajak Balikan / CLBK (Peluang 100% RNG)</button>
                     </div>
@@ -12197,7 +12915,7 @@
         const inhData = calculateInheritanceDistribution();
         const lawEl = document.getElementById("inheritanceLawLabel");
         const listEl = document.getElementById("inheritanceBreakdownList");
-        if (lawEl) lawEl.textContent = `${inhData.religion.icon} Agama: ${inhData.religion.name} — ${inhData.religion.lawName} (Total Harta: ${formatShortJuta(inhData.totalEstate)})`;
+        if (lawEl) lawEl.innerHTML = `${inhData.religion.icon} <b>Agama: ${inhData.religion.name}</b> — ${inhData.religion.lawName}<br>💰 <b>Komposisi Harta Dibagikan:</b> Tunai ${formatShortJuta(inhData.cashVal)} + Likuidasi Aset ${formatShortJuta(inhData.assetVal)} + Saham/Crypto ${formatShortJuta(inhData.portfolioVal)} = <b>Total ${formatShortJuta(inhData.totalEstate)}</b> (Aset <b>termasuk</b> ke dalam total waris yang dibagikan).`;
         if (listEl) {
             if (inhData.breakdown.length === 0) {
                 listEl.innerHTML = `<div style="color:#6b5344;">Tidak ada ahli waris tercatat. Harta diserahkan ke kas negara/yayasan.</div>`;
@@ -12262,7 +12980,8 @@
     function continueAsHeir(heirObj) {
         const h = heirObj.data;
         const inheritedMoney = roundMoney((typeof heirObj.shareAmount === 'number' ? heirObj.shareAmount : player.money) + (h.wealth || 0));
-        const inheritedAssets = (player.assets || []).filter(a => a.id !== "asuransi");
+        // Seluruh aset & portofolio telah dilikuidasi ke dalam total harta waris (shareAmount) sesuai hukum waris agama
+        const inheritedAssets = [];
         const nextGen = player.generation + 1;
         const oldName = player.name;
         
