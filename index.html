@@ -2946,6 +2946,231 @@
         );
     }
 
+
+    // =========================================================================
+    // BANK PERTANYAAN WAWANCARA KERJA (5 SOAL, LULUS >= 3/5)
+    // =========================================================================
+    const JOB_INTERVIEW_BANK = [
+        { q: "Jika atasan memberikan tenggat waktu (deadline) mendadak yang sangat ketat, langkah profesional terbaik adalah?", opts: ["Langsung mengeluh di grup WhatsApp", "Menyusun prioritas tugas & mengomunikasikan estimasi realistis", "Menghilang dan mematikan ponsel", "Menyerahkan semua ke anak magang"], ans: 1 },
+        { q: "Apa yang dimaksud dengan KPI (Key Performance Indicator) di dunia kerja?", opts: ["Kartu Parkir Instansi", "Indikator terukur untuk menilai pencapaian target kerja", "Komisi Pribadi Internal", "Kode Pajak Individu"], ans: 1 },
+        { q: "Ketika terjadi perbedaan pendapat tajam dengan rekan satu tim saat rapat, sikap terbaik adalah?", opts: ["Mendengarkan argumen secara objektif & mencari solusi berbasis data", "Memotong pembicaraan dengan suara keras", "Keluar dari ruang rapat", "Menyebarkan gosip setelah rapat"], ans: 0 },
+        { q: "Apa tujuan utama dari SOP (Standard Operating Procedure) di perusahaan?", opts: ["Mempersulit pekerjaan karyawan", "Menjamin konsistensi kualitas, keamanan, dan efisiensi kerja", "Menambah jumlah dokumen cetak", "Menggantikan peran manajer"], ans: 1 },
+        { q: "Jika kamu menemukan kesalahan fatal pada laporan yang hampir dikirim ke klien, tindakan paling bertanggung jawab adalah?", opts: ["Diam saja berharap tidak ketahuan", "Menyalahkan rekan kerja lain", "Segera melaporkan ke atasan & langsung memperbaikinya", "Menghapus file laporan tersebut"], ans: 2 },
+        { q: "Bagaimana cara menjaga etika komunikasi profesional melalui email/pesan kerja?", opts: ["Menggunakan bahasa sopan, jelas, ringkas, dan to the point", "Mengirim pesan tengah malam tanpa salam", "Menggunakan huruf kapital semua (CAPS LOCK)", "Hanya mengirim stiker tanpa teks"], ans: 0 },
+        { q: "Apa yang sebaiknya dilakukan saat mengalami kendala teknis yang menghambat pekerjaan?", opts: ["Menunggu sampai deadline lewat", "Mencari akar masalah lalu berkoordinasi dengan tim/atasan terkait", "Pulang lebih awal", "Mengabaikan tugas tersebut"], ans: 1 },
+        { q: "Dalam pengelolaan keuangan/operasional kerja, apa arti efisiensi biaya?", opts: ["Menggunakan sumber daya seoptimal mungkin tanpa menurunkan kualitas hasil", "Memotong gaji seluruh karyawan", "Tidak membeli peralatan kerja sama sekali", "Menunda semua pembayaran vendor"], ans: 0 },
+        { q: "Mengapa menjaga kerahasiaan data perusahaan dan klien sangat penting?", opts: ["Karena merupakan kewajiban hukum, etika profesi, dan kepercayaan bisnis", "Agar tidak ada yang tahu jam istirahat", "Sekadar aturan lama yang tidak relevan", "Hanya berlaku untuk divisi IT"], ans: 0 },
+        { q: "Saat menghadapi klien atau pelanggan yang sedang marah, langkah pertama yang tepat adalah?", opts: ["Ikut emosi dan membentak balik", "Tetap tenang, dengarkan keluhannya dengan empati, lalu tawarkan solusi", "Langsung menutup telepon", "Menertawakan keluhan klien"], ans: 1 }
+    ];
+
+    let activeInterview = null;
+    function startJobInterviewQuiz(jobTitle, onPass) {
+        const shuffled = [...JOB_INTERVIEW_BANK].sort(() => Math.random() - 0.5).slice(0, 5);
+        activeInterview = { jobTitle, questions: shuffled, index: 0, score: 0, onPass };
+        renderInterviewQuestion();
+    }
+
+    function renderInterviewQuestion() {
+        if (!activeInterview) return;
+        const qObj = activeInterview.questions[activeInterview.index];
+        const letters = ["A", "B", "C", "D"];
+        const choices = qObj.opts.map((txt, idx) => ({
+            text: `<b>${letters[idx]}.</b> ${txt}`,
+            fn: () => {
+                if (idx === qObj.ans) activeInterview.score += 1;
+                activeInterview.index += 1;
+                if (activeInterview.index >= activeInterview.questions.length) {
+                    const passed = activeInterview.score >= 3;
+                    const finalScore = activeInterview.score;
+                    const jTitle = activeInterview.jobTitle;
+                    const cb = activeInterview.onPass;
+                    activeInterview = null;
+                    if (passed) {
+                        playGameSound("coin");
+                        showToast(`✅ Lolos Interview ${jTitle} (${finalScore}/5)!`);
+                        if (typeof cb === "function") cb();
+                    } else {
+                        playGameSound("danger");
+                        addLog(`❌ **GAGAL INTERVIEW KERJA (${jTitle}):** Skor wawancaramu hanya **${finalScore}/5** (Syarat lulus minimal 3/5). Silakan coba melamar lagi!`, "danger");
+                        showToast(`❌ Gagal Interview (${finalScore}/5). Butuh ≥3/5!`);
+                    }
+                } else {
+                    renderInterviewQuestion();
+                }
+            }
+        }));
+        showPopupEvent(
+            "💼",
+            `Interview Kerja: ${activeInterview.jobTitle} (${activeInterview.index + 1}/5)`,
+            `<div style="font-size:12.5px; font-weight:800; color:#3d2b1f; margin-bottom:4px;">${qObj.q}</div><div style="font-size:10px; color:#7c6651;">Syarat Lolos Interview: Minimal <b>3 dari 5</b> pertanyaan benar.</div>`,
+            choices,
+            "💼 WAWANCARA KERJA HRD +62"
+        );
+    }
+
+    // =========================================================================
+    // BANK UJIAN KELULUSAN SD, SMP, SMA & KULIAH S1-S3 (10 SOAL RANDOM, LULUS >= 7/10)
+    // =========================================================================
+    const GRAD_EXAM_BANKS = {
+        sd: [
+            { q: "Hasil dari 12 × 8 adalah?", opts: ["84", "96", "104", "88"], ans: 1 },
+            { q: "Ibukota negara Indonesia adalah?", opts: ["Surabaya", "Bandung", "Jakarta", "Medan"], ans: 2 },
+            { q: "Tumbuhan membuat makanannya sendiri melalui proses?", opts: ["Respirasi", "Fotosintesis", "Evaporasi", "Fermentasi"], ans: 1 },
+            { q: "Lambang sila pertama Pancasila adalah?", opts: ["Rantai", "Pohon Beringin", "Bintang", "Kepala Banteng"], ans: 2 },
+            { q: "Planet terdekat dengan Matahari adalah?", opts: ["Venus", "Mars", "Merkurius", "Bumi"], ans: 2 },
+            { q: "Hasil dari 144 ÷ 12 adalah?", opts: ["10", "11", "12", "14"], ans: 2 },
+            { q: "Hewan pemakan tumbuhan disebut?", opts: ["Karnivora", "Herbivora", "Omnivora", "Insektivora"], ans: 1 },
+            { q: "Hari Kemerdekaan Republik Indonesia diperingati setiap tanggal?", opts: ["17 Agustus", "28 Oktober", "10 November", "1 Juni"], ans: 0 },
+            { q: "Alat pernapasan utama pada ikan adalah?", opts: ["Paru-paru", "Trakea", "Insang", "Kulit"], ans: 2 },
+            { q: "Lagu kebangsaan Indonesia diciptakan oleh?", opts: ["Ismail Marzuki", "W.R. Supratman", "Ibu Sud", "C. Simanjuntak"], ans: 1 },
+            { q: "Berapa jumlah provinsi awal saat Indonesia merdeka?", opts: ["8 Provinsi", "12 Provinsi", "27 Provinsi", "34 Provinsi"], ans: 0 },
+            { q: "Benda cair yang berubah menjadi gas disebut?", opts: ["Mencair", "Membeku", "Menguap", "Menyublim"], ans: 2 }
+        ],
+        smp: [
+            { q: "Jika 3x + 5 = 20, maka nilai x adalah?", opts: ["3", "4", "5", "6"], ans: 2 },
+            { q: "Rumus kimia air adalah?", opts: ["CO2", "H2O", "NaCl", "O2"], ans: 1 },
+            { q: "Satuan Internasional (SI) untuk gaya adalah?", opts: ["Joule", "Watt", "Newton", "Pascal"], ans: 2 },
+            { q: "Organel sel yang berfungsi sebagai tempat respirasi & penghasil energi adalah?", opts: ["Ribosom", "Mitokondria", "Vakuola", "Lisosom"], ans: 1 },
+            { q: "Sumpah Pemuda diikrarkan pada tanggal?", opts: ["20 Mei 1908", "28 Oktober 1928", "17 Agustus 1945", "10 November 1945"], ans: 1 },
+            { q: "Luas segitiga dengan alas 10 cm dan tinggi 6 cm adalah?", opts: ["30 cm²", "60 cm²", "16 cm²", "20 cm²"], ans: 0 },
+            { q: "Lapisan atmosfer tempat terjadinya cuaca (hujan & awan) adalah?", opts: ["Stratosfer", "Mesosfer", "Troposfer", "Termosfer"], ans: 2 },
+            { q: "Kerajaan Hindu tertua di Indonesia adalah?", opts: ["Majapahit", "Kutai", "Sriwijaya", "Mataram"], ans: 1 },
+            { q: "Hukum Newton II dirumuskan dengan?", opts: ["F = m × a", "E = m × c²", "V = I × R", "P = F / A"], ans: 0 },
+            { q: "Bagian darah yang berfungsi mengangkut oksigen adalah?", opts: ["Leukosit", "Trombosit", "Eritrosit (Hemoglobin)", "Plasma"], ans: 2 },
+            { q: "Nilai dari √169 adalah?", opts: ["11", "12", "13", "14"], ans: 2 },
+            { q: "Batas daratan dan lautan yang dipengaruhi pasang surut disebut?", opts: ["Pesisir / Litoral", "Palung", "Atol", "Delta"], ans: 0 }
+        ],
+        sma: [
+            { q: "Turunan pertama dari f(x) = 3x² + 4x - 5 adalah?", opts: ["6x + 4", "3x + 4", "6x - 5", "x² + 4"], ans: 0 },
+            { q: "Nilai dari log₁₀(1000) adalah?", opts: ["2", "3", "4", "10"], ans: 1 },
+            { q: "Proses pembelahan sel yang menghasilkan 4 sel anakan haploid (gamet) disebut?", opts: ["Mitosis", "Meiosis", "Amitosis", "Osmosis"], ans: 1 },
+            { q: "Dalam ekonomi, kenaikan harga barang dan jasa secara umum dan terus-menerus disebut?", opts: ["Deflasi", "Inflasi", "Resesi", "Devaluasi"], ans: 1 },
+            { q: "Ikatan kimia yang terjadi akibat serah terima elektron adalah?", opts: ["Ikatan Kovalen", "Ikatan Ion", "Ikatan Hidrogen", "Ikatan Logam"], ans: 1 },
+            { q: "Nilai sin(30°) dalam trigonometri adalah?", opts: ["0", "1/2", "1/2 √2", "1"], ans: 1 },
+            { q: "Badan Penyelidik Usaha-usaha Persiapan Kemerdekaan Indonesia disingkat?", opts: ["PPKI", "BPUPKI", "KNIP", "BKR"], ans: 1 },
+            { q: "Hukum kekekalan energi menyatakan bahwa energi tidak dapat diciptakan atau dimusnahkan, hanya dapat?", opts: ["Hilang di ruang hampa", "Berubah bentuk", "Menjadi massa diam", "Berhenti bergerak"], ans: 1 },
+            { q: "Dalam sosiologi, perpindahan status sosial seseorang ke lapisan lebih tinggi disebut?", opts: ["Mobilitas Horizontal", "Mobilitas Vertikal Naik", "Asimilasi", "Akulturasi"], ans: 1 },
+            { q: "pH larutan netral pada suhu ruang adalah?", opts: ["1", "5", "7", "14"], ans: 2 },
+            { q: "Peristiwa Rengasdengklok bertujuan untuk?", opts: ["Menyerah kepada Sekutu", "Mendesak Soekarno-Hatta segera memproklamasikan kemerdekaan", "Membentuk kabinet pertama", "Menyusun UUD 1945"], ans: 1 },
+            { q: "Jika hambatan R = 10 Ohm dan arus I = 2 Ampere, maka tegangan V adalah?", opts: ["5 Volt", "12 Volt", "20 Volt", "0.2 Volt"], ans: 2 }
+        ],
+        teknik: [
+            { q: "Struktur data yang menganut prinsip LIFO (Last In, First Out) adalah?", opts: ["Queue", "Stack", "Linked List", "Hash Map"], ans: 1 },
+            { q: "Kompleksitas waktu Binary Search pada array terurut adalah?", opts: ["O(n)", "O(n²)", "O(log n)", "O(1)"], ans: 2 },
+            { q: "Dalam jaringan komputer, protokol standar untuk transfer halaman web terenkripsi adalah?", opts: ["FTP", "HTTP", "HTTPS", "SMTP"], ans: 2 },
+            { q: "Hukum Termodinamika I membahas tentang?", opts: ["Entropi", "Kekekalan Energi", "Suhu Nol Mutlak", "Radiasi Benda Hitam"], ans: 1 },
+            { q: "Perintah SQL untuk mengambil data dari tabel database adalah?", opts: ["INSERT", "UPDATE", "SELECT", "DELETE"], ans: 2 },
+            { q: "Apa fungsi utama Git dalam rekayasa perangkat lunak?", opts: ["Version Control System", "Compiler bahasa C", "Database Server", "Antivirus"], ans: 0 },
+            { q: "Dalam elektronika, komponen yang berfungsi menyearahkan arus AC menjadi DC adalah?", opts: ["Resistor", "Kapasitor", "Dioda", "Induktor"], ans: 2 },
+            { q: "Tegangan geser (shear stress) pada mekanika teknik diukur dalam satuan?", opts: ["Newton", "Pascal (N/m²)", "Joule", "Watt"], ans: 1 },
+            { q: "Arsitektur API modern yang menggunakan metode GET, POST, PUT, DELETE disebut?", opts: ["REST", "BIOS", "DNS", "DHCP"], ans: 0 },
+            { q: "Dalam manufaktur, metode 'Lean Manufacturing' berfokus pada?", opts: ["Menambah limbah produksi", "Menghilangkan pemborosan (waste) & meningkatkan nilai", "Memperlambat lini produksi", "Menghapus inspeksi kualitas"], ans: 1 },
+            { q: "Bilangan biner 1010 setara dengan bilangan desimal?", opts: ["8", "10", "12", "14"], ans: 1 },
+            { q: "Apa kepanjangan dari CPU?", opts: ["Central Processing Unit", "Computer Power Unit", "Core Program Utility", "Central Peripheral Unit"], ans: 0 }
+        ],
+        ekonomi: [
+            { q: "Persamaan dasar akuntansi yang benar adalah?", opts: ["Aset = Liabilitas + Ekuitas", "Aset = Pendapatan - Beban", "Ekuitas = Aset + Liabilitas", "Laba = Aset - Kas"], ans: 0 },
+            { q: "Laporan keuangan yang menggambarkan posisi aset, utang, dan modal pada tanggal tertentu adalah?", opts: ["Laporan Laba Rugi", "Neraca (Balance Sheet)", "Laporan Arus Kas", "Catatan Atas Laporan"], ans: 1 },
+            { q: "Rasio keuangan untuk mengukur kemampuan perusahaan melunasi utang jangka pendek disebut?", opts: ["Rasio Likuiditas", "Rasio Solvabilitas", "Rasio Profitabilitas", "Rasio Aktivitas"], ans: 0 },
+            { q: "Bank sentral yang mengatur kebijakan moneter di Indonesia adalah?", opts: ["OJK", "Bank Indonesia (BI)", "Kementerian Keuangan", "LPS"], ans: 1 },
+            { q: "Apa yang dimaksud dengan ROI (Return on Investment)?", opts: ["Tingkat pengembalian laba dibanding modal investasi", "Total utang bank", "Biaya pemasaran tahunan", "Pajak penghasilan badan"], ans: 0 },
+            { q: "Konsep 'Time Value of Money' menyatakan bahwa?", opts: ["Uang hari ini lebih bernilai daripada jumlah sama di masa depan", "Uang tidak dipengaruhi inflasi", "Bunga selalu nol", "Kas tidak perlu diinvestasikan"], ans: 0 },
+            { q: "Dalam pemasaran, 4P Marketing Mix terdiri dari Product, Price, Place, dan?", opts: ["Profit", "Promotion", "People", "Policy"], ans: 1 },
+            { q: "Titik di mana total pendapatan sama dengan total biaya (tidak untung, tidak rugi) disebut?", opts: ["Break-Even Point (BEP)", "Net Present Value", "Gross Margin", "Cash Flow"], ans: 0 },
+            { q: "Diversifikasi portofolio investasi bertujuan utama untuk?", opts: ["Menghilangkan seluruh pajak", "Mengurangi risiko investasi", "Menjamin profit 100%", "Menambah biaya transaksi"], ans: 1 },
+            { q: "Kebijakan pemerintah mengatur anggaran belanja negara (APBN) dan pajak disebut kebijakan?", opts: ["Moneter", "Fiskal", "Perdagangan", "Industri"], ans: 1 },
+            { q: "Pendapatan dikurangi Harga Pokok Penjualan (HPP) menghasilkan?", opts: ["Laba Bersih", "Laba Kotor (Gross Profit)", "Arus Kas Operasi", "Ekuitas"], ans: 1 },
+            { q: "Pasar tempat jual beli saham perusahaan terbuka di Indonesia adalah?", opts: ["Bursa Efek Indonesia (BEI)", "Pasar Tanah Abang", "Kantor Pajak", "Bappenas"], ans: 0 }
+        ],
+        hukum: [
+            { q: "Sumber hukum tertulis tertinggi di Negara Kesatuan Republik Indonesia adalah?", opts: ["Undang-Undang", "Peraturan Pemerintah", "UUD NRI Tahun 1945", "Peraturan Daerah"], ans: 2 },
+            { q: "Asas 'Praduga Tak Bersalah' (Presumption of Innocence) berarti?", opts: ["Tersangka langsung dianggap bersalah", "Seseorang dianggap tidak bersalah sampai ada putusan pengadilan berkekuatan hukum tetap", "Hakim bebas memutus tanpa bukti", "Polisi boleh menghukum langsung"], ans: 1 },
+            { q: "Hukum yang mengatur hubungan antar individu/privat (seperti perjanjian & waris) disebut?", opts: ["Hukum Pidana", "Hukum Perdata", "Hukum Tata Negara", "Hukum Internasional"], ans: 1 },
+            { q: "Lembaga negara yang berwenang menguji Undang-Undang terhadap UUD 1945 adalah?", opts: ["Mahkamah Agung", "Mahkamah Konstitusi (MK)", "Komisi Yudisial", "DPR"], ans: 1 },
+            { q: "Dalam hukum perjanjian (Pasal 1320 KUHPerdata), salah satu syarat sah perjanjian adalah?", opts: ["Sepakat mereka yang mengikatkan dirinya", "Harus ditulis di kertas emas", "Wajib disaksikan 100 orang", "Tidak boleh melibatkan uang"], ans: 0 },
+            { q: "Asas legalitas dalam hukum pidana ('Nullum delictum nulla poena sine praevia lege poenali') berarti?", opts: ["Tidak ada pidana tanpa aturan hukum yang mendahuluinya", "Hukum berlaku surut sesuka hati", "Semua pelanggaran bebas hukuman", "Hukum adat menghapus KUHP"], ans: 0 },
+            { q: "Upaya hukum biasa terhadap putusan Pengadilan Negeri ke Pengadilan Tinggi disebut?", opts: ["Kasasi", "Banding", "Peninjauan Kembali", "Grasi"], ans: 1 },
+            { q: "Sistem pembagian kekuasaan Legislatif, Eksekutif, dan Yudikatif dikenal sebagai?", opts: ["Trias Politica", "Monarki Absolut", "Oligarki", "Sentralisasi"], ans: 0 },
+            { q: "Pihak yang bertugas melakukan penuntutan perkara pidana di pengadilan adalah?", opts: ["Notaris", "Jaksa Penuntut Umum", "Panitera", "Kurator"], ans: 1 },
+            { q: "Hakim wajib memutus perkara berdasarkan?", opts: ["Opini media sosial", "Minimal dua alat bukti sah & keyakinan hakim", "Tekanan pihak luar", "Tebakan semata"], ans: 1 },
+            { q: "Perjanjian internasional yang mengikat negara-negara penandatangan disebut?", opts: ["Traktat / Konvensi", "Perda", "Surat Edaran", "Nota Dinas"], ans: 0 },
+            { q: "Lembaga yang mengawasi perilaku hakim di Indonesia adalah?", opts: ["Komisi Yudisial (KY)", "KPK", "BPK", "KPU"], ans: 0 }
+        ],
+        sains: [
+            { q: "Organ tubuh manusia yang berfungsi menyaring darah dan menghasilkan urine adalah?", opts: ["Hati", "Ginjal", "Limpa", "Pankreas"], ans: 1 },
+            { q: "Hormon yang mengatur kadar gula darah dan diproduksi oleh pankreas adalah?", opts: ["Adrenalin", "Insulin", "Tiroksin", "Estrogen"], ans: 1 },
+            { q: "Tekanan darah normal rata-rata orang dewasa sehat adalah sekitar?", opts: ["120/80 mmHg", "180/120 mmHg", "80/40 mmHg", "200/100 mmHg"], ans: 0 },
+            { q: "Penyakit Demam Berdarah Dengue (DBD) ditularkan oleh nyamuk?", opts: ["Anopheles", "Aedes aegypti", "Culex", "Mansonia"], ans: 1 },
+            { q: "Vitamin yang berperan penting dalam pembekuan darah adalah?", opts: ["Vitamin A", "Vitamin C", "Vitamin K", "Vitamin B1"], ans: 2 },
+            { q: "Dalam pertanian, unsur hara makro utama yang dibutuhkan tanaman adalah?", opts: ["N, P, K (Nitrogen, Fosfor, Kalium)", "Au, Ag, Cu", "He, Ne, Ar", "Pb, Hg, Cd"], ans: 0 },
+            { q: "Antibiotik hanya efektif digunakan untuk mengobati infeksi yang disebabkan oleh?", opts: ["Virus", "Bakteri", "Radiasi", "Kekurangan vitamin"], ans: 1 },
+            { q: "Bagian otak yang mengatur keseimbangan tubuh dan koordinasi gerak adalah?", opts: ["Serebelum (Otak Kecil)", "Medula Oblongata", "Hipotalamus", "Talamus"], ans: 0 },
+            { q: "Proses masuknya oksigen ke dalam darah di paru-paru terjadi di bagian?", opts: ["Trakea", "Bronkus", "Alveolus", "Laring"], ans: 2 },
+            { q: "Metode pengendalian hama terpadu (PHT) bertujuan untuk?", opts: ["Menjaga keseimbangan ekosistem & meminimalkan pestisida kimia", "Membunuh semua serangga termasuk lebah", "Mencemari air tanah", "Menghapus rotasi tanaman"], ans: 0 },
+            { q: "Satuan terkecil penyusun makhluk hidup adalah?", opts: ["Jaringan", "Organ", "Sel", "Sistem Organ"], ans: 2 },
+            { q: "Vaksinasi bekerja dengan cara?", opts: ["Merangsang sistem imun membentuk antibodi terhadap patogen tertentu", "Mengganti seluruh darah pasien", "Mematikan sistem saraf", "Menghilangkan sel darah putih"], ans: 0 }
+        ],
+        seni: [
+            { q: "Tiga warna primer dalam teori warna pigmen/seni rupa tradisional adalah?", opts: ["Merah, Kuning, Biru", "Hijau, Ungu, Oranye", "Hitam, Putih, Abu-abu", "Cokelat, Emas, Perak"], ans: 0 },
+            { q: "Prinsip desain yang mengatur perbandingan ukuran antar elemen agar harmonis disebut?", opts: ["Proporsi", "Distorsi", "Monokrom", "Abstraksi"], ans: 0 },
+            { q: "Batik Indonesia telah diakui UNESCO sebagai?", opts: ["Warisan Budaya Takbenda Kemanusiaan", "Keajaiban Alam Dunia", "Situs Geopark", "Cagar Biosfer"], ans: 0 },
+            { q: "Dalam fotografi, pengaturan bukaan lensa yang memengaruhi kedalaman ruang (bokeh) disebut?", opts: ["ISO", "Aperture (Diafragma)", "Shutter Speed", "White Balance"], ans: 1 },
+            { q: "Istilah 'Sustainable Tourism' dalam pariwisata berarti?", opts: ["Pariwisata berkelanjutan yang menjaga lingkungan, budaya, & ekonomi lokal", "Pariwisata massal tanpa batas", "Membangun hotel di hutan lindung", "Menghapus budaya lokal"], ans: 0 },
+            { q: "Dalam tipografi, jenis huruf yang memiliki kait kecil di ujung garisnya disebut?", opts: ["Sans-serif", "Serif", "Monospace", "Script"], ans: 1 },
+            { q: "Alat musik tradisional Jawa Barat yang terbuat dari bambu dan dimainkan dengan digoyangkan adalah?", opts: ["Gamelan", "Angklung", "Sasando", "Tifa"], ans: 1 },
+            { q: "Komposisi visual yang membagi bidang gambar menjadi 9 kotak sama besar disebut?", opts: ["Rule of Thirds", "Golden Ratio", "Symmetry Lock", "Pixel Grid"], ans: 0 },
+            { q: "Seni pertunjukan boneka kulit tradisional Indonesia yang mendunia adalah?", opts: ["Wayang Kulit", "Kabuki", "Opera", "Balet"], ans: 0 },
+            { q: "Format file gambar grafis berbasis vektor yang tidak pecah saat diperbesar adalah?", opts: ["JPG", "PNG", "SVG", "BMP"], ans: 2 },
+            { q: "Dalam perfilman, orang yang bertanggung jawab atas arahan artistik & akting di lokasi syuting adalah?", opts: ["Sutradara", "Akuntan Produksi", "Katering", "Distributor"], ans: 0 },
+            { q: "Ruang kosong di sekitar elemen desain agar tampilan bersih & mudah dibaca disebut?", opts: ["White Space (Negative Space)", "Dead Pixel", "Noise", "Gradient"], ans: 0 }
+        ]
+    };
+
+    let activeGradExam = null;
+    function startGraduationExam(stage, titleLabel, bankKey, onPass, onFail) {
+        const bank = GRAD_EXAM_BANKS[bankKey] || GRAD_EXAM_BANKS.sma;
+        const picked = [...bank].sort(() => Math.random() - 0.5).slice(0, 10);
+        activeGradExam = { stage, titleLabel, questions: picked, index: 0, score: 0, onPass, onFail };
+        renderGradExamQuestion();
+    }
+
+    function renderGradExamQuestion() {
+        if (!activeGradExam) return;
+        const qObj = activeGradExam.questions[activeGradExam.index];
+        const letters = ["A", "B", "C", "D"];
+        const choices = qObj.opts.map((txt, idx) => ({
+            text: `<b>${letters[idx]}.</b> ${txt}`,
+            fn: () => {
+                if (idx === qObj.ans) activeGradExam.score += 1;
+                activeGradExam.index += 1;
+                if (activeGradExam.index >= activeGradExam.questions.length) {
+                    const finalScore = activeGradExam.score;
+                    const passed = finalScore >= 7;
+                    const cbPass = activeGradExam.onPass;
+                    const cbFail = activeGradExam.onFail;
+                    activeGradExam = null;
+                    if (passed) {
+                        playGameSound("coin");
+                        if (typeof cbPass === "function") cbPass(finalScore);
+                    } else {
+                        playGameSound("danger");
+                        if (typeof cbFail === "function") cbFail(finalScore);
+                    }
+                    updateUI();
+                } else {
+                    renderGradExamQuestion();
+                }
+            }
+        }));
+        showPopupEvent(
+            "📝",
+            `${activeGradExam.titleLabel} — Soal ${activeGradExam.index + 1}/10`,
+            `<div style="font-size:12.5px; font-weight:800; color:#3d2b1f; margin-bottom:4px;">${qObj.q}</div><div style="font-size:10px; color:#7c6651;">Syarat Lulus: Minimal <b>7 dari 10</b> pertanyaan benar. Gagal 2 tahun berturut-turut = Putus Sekolah / DO!</div>`,
+            choices,
+            "🎓 UJIAN KELULUSAN NASIONAL / SIDANG AKHIR"
+        );
+    }
+
     let activeSimExam = null;
 
     function startSimExam(simType) {
@@ -3103,26 +3328,26 @@
             return;
         }
 
-        player.job = {
-            id: jb.id,
-            title: jb.title,
-            city: player.city.name,
-            icon: jb.icon,
-            salary: jb.salary,
-            taxType: jb.taxType,
-            noGlasses: jb.noGlasses,
-            reqSim: jb.reqSim,
-            fullTimeOnly: true
-        };
-        player.jobHours = 40;
-        player.salary = jb.salary;
-        player.yearsWorked = 0;
-
-        modifyStats({ happy: randInt(4, 10), social: randInt(2, 5) });
-        playGameSound("coin");
-        addLog(`${jb.icon} **DITERIMA BEKERJA (${jb.title.toUpperCase()}):** Kamu resmi diterima sebagai **${jb.icon} ${jb.title}** dengan gaji **Rp ${jb.salary} Jt/tahun**!`, "career");
-        showToast(`Resmi bekerja sebagai ${jb.title}!`);
-        renderKarirSheet("kerja");
+        startJobInterviewQuiz(jb.title, () => {
+            player.job = {
+                id: jb.id,
+                title: jb.title,
+                city: player.city.name,
+                icon: jb.icon,
+                salary: jb.salary,
+                taxType: jb.taxType,
+                noGlasses: jb.noGlasses,
+                reqSim: jb.reqSim,
+                fullTimeOnly: true
+            };
+            player.jobHours = 40;
+            player.salary = jb.salary;
+            player.yearsWorked = 0;
+            modifyStats({ happy: randInt(4, 10), social: randInt(2, 5) });
+            addLog(`${jb.icon} **DITERIMA BEKERJA (${jb.title.toUpperCase()}):** Kamu lolos interview & resmi diterima sebagai **${jb.icon} ${jb.title}** dengan gaji **Rp ${jb.salary} Jt/tahun**!`, "career");
+            showToast(`Resmi bekerja sebagai ${jb.title}!`);
+            renderKarirSheet("kerja");
+        });
     }
 
 
@@ -3211,28 +3436,62 @@
 
     function triggerDiseaseEvent() {
         if (!player || !player.alive || player.inJail) return false;
-        let sickChance = 0.24;
-        if (player.stats.health < 50) sickChance += 0.14;
-        if (player.age >= 50) sickChance += 0.12;
+        const age = player.age || 0;
+        const health = (player.stats && typeof player.stats.health === "number") ? player.stats.health : 70;
+        const lastSick = typeof player.lastSickAge === "number" ? player.lastSickAge : -10;
+        const gap = age - lastSick;
+
+        // Jarak aman agar tidak sakit setiap tahun saat masih muda & sehat
+        if (age <= 17 && gap < 3 && health >= 40) return false;
+        if (age > 17 && age <= 35 && gap < 2 && health >= 40) return false;
+        if (age > 35 && age <= 50 && gap < 1 && health >= 50) return false;
+
+        // Peluang dasar naik bertahap seiring bertambahnya umur
+        let sickChance = 0.06;
+        if (age <= 17) sickChance = 0.06;
+        else if (age <= 35) sickChance = 0.09;
+        else if (age <= 50) sickChance = 0.16;
+        else if (age <= 65) sickChance = 0.27;
+        else sickChance = 0.40;
+
+        // Modifikasi berdasarkan parameter Kesehatan player
+        if (health >= 85) sickChance -= 0.04;
+        else if (health >= 70) sickChance -= 0.02;
+        else if (health < 50 && health >= 30) sickChance += 0.09;
+        else if (health < 30) sickChance += 0.18;
+
+        sickChance = Math.max(0.02, Math.min(0.65, sickChance));
         if (Math.random() > sickChance) return false;
 
+        player.lastSickAge = age;
+
+        // Distribusi tingkat keparahan penyakit menyesuaikan umur & kesehatan (makin tua makin banyak penyakit sedang & kritis)
+        let critProb = 0.03, medProb = 0.17;
+        if (age <= 25) { critProb = 0.03; medProb = 0.17; }
+        else if (age <= 45) { critProb = 0.10; medProb = 0.32; }
+        else if (age <= 60) { critProb = 0.25; medProb = 0.40; }
+        else { critProb = 0.42; medProb = 0.40; }
+
+        if (health < 40) critProb += 0.10;
+
         const r = Math.random();
-        const critThreshold = (player.age >= 45 || player.stats.health < 40) ? 0.28 : 0.14;
         let pool;
-        if (r < critThreshold) pool = DISEASES_72.filter(d => d.severity === "kritis");
-        else if (r < critThreshold + 0.32) pool = DISEASES_72.filter(d => d.severity === "sedang");
+        if (r < critProb) pool = DISEASES_72.filter(d => d.severity === "kritis");
+        else if (r < critProb + medProb) pool = DISEASES_72.filter(d => d.severity === "sedang");
         else pool = DISEASES_72.filter(d => d.severity === "ringan");
 
         const dis = pickRandom(pool);
-        const isChildMedical = player.age >= 0 && player.age <= 12;
+        const isChildMedical = age >= 0 && age <= 12;
         const annualIncome = isChildMedical ? 0 : ((player.job ? player.salary : 0) + getSideJobsAnnualIncome());
         const prodLoss = roundMoney(annualIncome * dis.incomeLossPct);
         const rawMedCost = dis.medicalCost;
 
-        const hasVip = hasActiveLifeInsurance();
+        const hasHealthVip = hasActiveHealthInsurance();
+        const hasLifeVip = hasActiveLifeInsurance();
         let outOfPocketMed = rawMedCost;
+        let inpatientBonus = 0;
         let coverageLabel = "Bayar Tunai Mandiri (0% cover)";
-        let payerType = "player"; // "player" | "parents" | "orphanage"
+        let payerType = "player";
         let payerLabel = "Saldo Pribadi";
         let payerBalanceText = formatShortJuta(player.money);
 
@@ -3245,19 +3504,19 @@
                 payerBalanceText = formatShortJuta(totalPWealth);
 
                 const pIns = player.parentInsurance || { id: "none", icon: "❌", name: "Tanpa BPJS/Asuransi Ortu", coverage: 0 };
-                if (hasVip) {
-                    outOfPocketMed = 0;
-                    coverageLabel = "🛡️ Dicover 100% Polis Asuransi Jiwa VIP (Rp 0)";
+                if (hasHealthVip) {
+                    const hi = player.healthInsurance;
+                    outOfPocketMed = roundMoney(rawMedCost * (1 - hi.coverage));
+                    inpatientBonus = hi.inpatientCashBonus || 0;
+                    coverageLabel = `${hi.icon} ${hi.name} (${Math.round(hi.coverage * 100)}% cover)`;
                 } else if (pIns.coverage > 0) {
-                    const coveredMed = roundMoney(rawMedCost * pIns.coverage);
-                    outOfPocketMed = roundMoney(rawMedCost - coveredMed);
+                    outOfPocketMed = roundMoney(rawMedCost * (1 - pIns.coverage));
                     coverageLabel = `${pIns.icon || '🏥'} ${pIns.name} (${Math.round(pIns.coverage * 100)}% ditanggung)`;
                 } else {
                     outOfPocketMed = rawMedCost;
                     coverageLabel = "❌ Orang Tua Tidak Memiliki BPJS/Asuransi (0% cover)";
                 }
             } else {
-                // Panti Asuhan / Yayasan
                 if (!player.orphanage) {
                     player.orphanage = createOrphanageData(player.city ? player.city.name : "Nusantara");
                 }
@@ -3266,12 +3525,13 @@
                 payerBalanceText = formatShortJuta(player.orphanage.wealth || 0);
 
                 const yIns = player.orphanage.insurance || { id: "none", icon: "❌", name: "Tanpa Asuransi Yayasan", coverage: 0 };
-                if (hasVip) {
-                    outOfPocketMed = 0;
-                    coverageLabel = "🛡️ Dicover 100% Polis Asuransi Jiwa VIP (Rp 0)";
+                if (hasHealthVip) {
+                    const hi = player.healthInsurance;
+                    outOfPocketMed = roundMoney(rawMedCost * (1 - hi.coverage));
+                    inpatientBonus = hi.inpatientCashBonus || 0;
+                    coverageLabel = `${hi.icon} ${hi.name} (${Math.round(hi.coverage * 100)}% cover)`;
                 } else if (yIns.coverage > 0) {
-                    const coveredMed = roundMoney(rawMedCost * yIns.coverage);
-                    outOfPocketMed = roundMoney(rawMedCost - coveredMed);
+                    outOfPocketMed = roundMoney(rawMedCost * (1 - yIns.coverage));
                     coverageLabel = `${yIns.icon || '🛡️'} ${yIns.name} (${Math.round(yIns.coverage * 100)}% ditanggung)`;
                 } else {
                     outOfPocketMed = rawMedCost;
@@ -3280,12 +3540,13 @@
             }
         } else {
             const bpjsObj = BPJS_PLANS.find(b => b.id === (player.bpjsPlan || "none")) || BPJS_PLANS[0];
-            if (hasVip) {
-                outOfPocketMed = 0;
-                coverageLabel = "🛡️ Dicover 100% Polis Asuransi Jiwa VIP (Rp 0)";
+            if (hasHealthVip) {
+                const hi = player.healthInsurance;
+                outOfPocketMed = roundMoney(rawMedCost * (1 - hi.coverage));
+                inpatientBonus = hi.inpatientCashBonus || 0;
+                coverageLabel = `${hi.icon} ${hi.name} (${Math.round(hi.coverage * 100)}% cover + Santunan Rawat Inap Rp ${inpatientBonus} Jt)`;
             } else if (bpjsObj.coverage > 0) {
-                const coveredMed = roundMoney(rawMedCost * bpjsObj.coverage);
-                outOfPocketMed = roundMoney(rawMedCost - coveredMed);
+                outOfPocketMed = roundMoney(rawMedCost * (1 - bpjsObj.coverage));
                 coverageLabel = `🏥 ${bpjsObj.name} (${Math.round(bpjsObj.coverage * 100)}% dicover)`;
             }
         }
@@ -3338,13 +3599,13 @@
                             player.orphanage.wealth = roundMoney((player.orphanage.wealth || 0) - outOfPocketMed);
                             addLog(`🏥 **PENGOBATAN PANTI ASUHAN (${dis.name.toUpperCase()}):** Biaya pengobatanmu **-${formatShortJuta(outOfPocketMed)}** (${coverageLabel}) ditanggung langsung dari **${payerLabel}** (Sisa kas yayasan: **${formatShortJuta(player.orphanage.wealth)}**).`, dis.severity === "kritis" ? "danger" : "normal");
                         } else {
-                            player.money = roundMoney(player.money - totalEstLoss);
-                            addLog(`🏥 **PENGOBATAN (${dis.name.toUpperCase()}):** Kamu menjalani perawatan **${dis.name}** (${dis.severity}). Total kerugian biaya medis + produktivitas: **-${formatShortJuta(totalEstLoss)}** (${coverageLabel}).`, dis.severity === "kritis" ? "danger" : "normal");
+                            player.money = roundMoney(player.money - totalEstLoss + inpatientBonus);
+                            addLog(`🏥 **PENGOBATAN (${dis.name.toUpperCase()}):** Kamu menjalani perawatan **${dis.name}** (${dis.severity}). Kerugian bersih: **-${formatShortJuta(totalEstLoss)}**${inpatientBonus > 0 ? ` + Santunan Rawat Inap **+Rp ${inpatientBonus} Jt**` : ''} (${coverageLabel}).`, dis.severity === "kritis" ? "danger" : "normal");
                         }
 
                         const finalDrop = Math.max(2, Math.round(dis.healthDrop * 0.55));
                         modifyStats({ health: -finalDrop, happy: -randInt(2, 6) });
-                        if (dis.insuranceClause && hasVip) {
+                        if (dis.insuranceClause && hasLifeVip) {
                             triggerCriticalIllnessBenefit(`Klausul Penyakit Kritis: ${dis.name}`);
                         }
                         checkDeathConditions();
@@ -3577,11 +3838,13 @@
             showToast(`Kamu sudah menjalankan ${sm.title}!`);
             return;
         }
-        player.socialMediaJobs.push({ ...sm });
-        modifyStats({ social: 3, happy: 2 });
-        addLog(`📱 **PEKERJAAN MEDIA SOSIAL AKTIF:** Kamu mulai menekuni **${sm.icon} ${sm.title}** dengan estimasi penghasilan **+Rp ${sm.salary} Jt/tahun**.`, "career");
-        showToast(`Mulai ${sm.title}!`);
-        renderKarirSheet("informal_resilient");
+        startJobInterviewQuiz(sm.title, () => {
+            player.socialMediaJobs.push({ ...sm });
+            modifyStats({ social: 3, happy: 2 });
+            addLog(`📱 **PEKERJAAN MEDIA SOSIAL AKTIF:** Lolos seleksi! Kamu mulai menekuni **${sm.icon} ${sm.title}** (**+Rp ${sm.salary} Jt/tahun**).`, "career");
+            showToast(`Mulai ${sm.title}!`);
+            renderKarirSheet("informal_resilient");
+        });
     }
 
     function quitSocialMediaJob(id) {
@@ -4625,6 +4888,169 @@
     // Benefit: Semua biaya medis dicover 100%, sakit kritis -> bebas premi & santunan 50% (Rp 300 Jt),
     // meninggal dunia (pemegang polis / pasangan / orang tua) -> santunan 100% (Rp 600 Jt)
     // =========================================================================
+
+    // =========================================================================
+    // ASURANSI VIP TERPISAH: ASURANSI JIWA & ASURANSI KESEHATAN (BIRU, MERAH, HIJAU)
+    // =========================================================================
+    const LIFE_INSURANCE_PLANS = [
+        {
+            id: "jiwa_biru",
+            color: "Biru",
+            icon: "🔵",
+            name: "Asuransi Jiwa Biru",
+            annualPremium: 12,
+            sumAssured: 400,
+            critPct: 0.40,
+            maxEntryAge: 55,
+            desc: "Premi Rp 12 Jt/thn • Santunan Meninggal Rp 400 Jt • Sakit Kritis 40% (Rp 160 Jt) + Bebas Premi • Maks. Usia Daftar: 55 Thn."
+        },
+        {
+            id: "jiwa_merah",
+            color: "Merah",
+            icon: "🔴",
+            name: "Asuransi Jiwa Merah",
+            annualPremium: 25,
+            sumAssured: 800,
+            critPct: 0.50,
+            maxEntryAge: 60,
+            desc: "Premi Rp 25 Jt/thn • Santunan Meninggal Rp 800 Jt • Sakit Kritis 50% (Rp 400 Jt) + Bebas Premi • Maks. Usia Daftar: 60 Thn."
+        },
+        {
+            id: "jiwa_hijau",
+            color: "Hijau",
+            icon: "🟢",
+            name: "Asuransi Jiwa Hijau",
+            annualPremium: 45,
+            sumAssured: 1500,
+            critPct: 0.60,
+            maxEntryAge: 65,
+            desc: "Premi Rp 45 Jt/thn • Santunan Meninggal Rp 1,5 Miliar • Sakit Kritis 60% (Rp 900 Jt) + Bebas Premi • Maks. Usia Daftar: 65 Thn."
+        }
+    ];
+
+    const HEALTH_INSURANCE_PLANS = [
+        {
+            id: "kes_biru",
+            color: "Biru",
+            icon: "🔵",
+            name: "Asuransi Kesehatan Biru",
+            annualPremium: 10,
+            coverage: 0.90,
+            overseasDiscount: 0.50,
+            inpatientCashBonus: 3,
+            maxEntryAge: 55,
+            desc: "Premi Rp 10 Jt/thn • Cover RS 90% • Diskon RS Penang/SG 50% • Santunan Rawat Inap +Rp 3 Jt • Maks. Usia Daftar: 55 Thn."
+        },
+        {
+            id: "kes_merah",
+            color: "Merah",
+            icon: "🔴",
+            name: "Asuransi Kesehatan Merah",
+            annualPremium: 20,
+            coverage: 0.95,
+            overseasDiscount: 0.75,
+            inpatientCashBonus: 6,
+            maxEntryAge: 60,
+            desc: "Premi Rp 20 Jt/thn • Cover RS 95% • Diskon RS Penang/SG 75% • Santunan Rawat Inap +Rp 6 Jt • Maks. Usia Daftar: 60 Thn."
+        },
+        {
+            id: "kes_hijau",
+            color: "Hijau",
+            icon: "🟢",
+            name: "Asuransi Kesehatan Hijau",
+            annualPremium: 35,
+            coverage: 1.00,
+            overseasDiscount: 1.00,
+            inpatientCashBonus: 10,
+            maxEntryAge: 65,
+            desc: "Premi Rp 35 Jt/thn • Cover RS 100% (Rp 0) • Gratis 100% RS Penang/SG • Santunan Rawat Inap +Rp 10 Jt • Maks. Usia Daftar: 65 Thn."
+        }
+    ];
+
+    function hasActiveHealthInsurance() {
+        return !!(player && player.healthInsurance && player.healthInsurance.active);
+    }
+
+    function getHealthInsuranceAnnualPremium() {
+        if (!hasActiveHealthInsurance()) return 0;
+        return player.healthInsurance.annualPremium || 0;
+    }
+
+    function subscribeLifeInsurance(planId) {
+        if (!player || !player.alive) return;
+        const plan = LIFE_INSURANCE_PLANS.find(p => p.id === planId);
+        if (!plan) return;
+        if (player.age > plan.maxEntryAge) {
+            showToast(`Usia maksimum mendaftar ${plan.name} adalah ${plan.maxEntryAge} tahun!`);
+            return;
+        }
+        if (player.money < plan.annualPremium) {
+            showToast(`Saldo kurang! Premi awal ${plan.name} adalah ${formatShortJuta(plan.annualPremium)}.`);
+            return;
+        }
+        player.money = roundMoney(player.money - plan.annualPremium);
+        player.lifeInsurance = {
+            active: true,
+            planId: plan.id,
+            name: plan.name,
+            icon: plan.icon,
+            annualPremium: plan.annualPremium,
+            sumAssured: plan.sumAssured,
+            critPct: plan.critPct,
+            criticalIllnessClaimed: false,
+            waiverActive: false,
+            deathClaimPaid: false
+        };
+        playGameSound("coin");
+        addLog(`🛡️ **POLIS ASURANSI JIWA AKTIF:** Kamu mendaftar **${plan.icon} ${plan.name}** (Premi Rp ${plan.annualPremium} Jt/thn • Santunan Meninggal ${formatShortJuta(plan.sumAssured)}).`, "money");
+        showToast(`✅ ${plan.name} aktif!`);
+        if (currentModalType === "karir") renderKarirSheet("aset");
+        else if (currentModalType === "upgrade") renderUpgradeSheet("kesehatan");
+        updateUI();
+    }
+
+    function subscribeHealthInsurance(planId) {
+        if (!player || !player.alive) return;
+        const plan = HEALTH_INSURANCE_PLANS.find(p => p.id === planId);
+        if (!plan) return;
+        if (player.age > plan.maxEntryAge) {
+            showToast(`Usia maksimum mendaftar ${plan.name} adalah ${plan.maxEntryAge} tahun!`);
+            return;
+        }
+        if (player.money < plan.annualPremium) {
+            showToast(`Saldo kurang! Premi awal ${plan.name} adalah ${formatShortJuta(plan.annualPremium)}.`);
+            return;
+        }
+        player.money = roundMoney(player.money - plan.annualPremium);
+        player.healthInsurance = {
+            active: true,
+            planId: plan.id,
+            name: plan.name,
+            icon: plan.icon,
+            annualPremium: plan.annualPremium,
+            coverage: plan.coverage,
+            overseasDiscount: plan.overseasDiscount,
+            inpatientCashBonus: plan.inpatientCashBonus
+        };
+        playGameSound("coin");
+        addLog(`🏥 **POLIS ASURANSI KESEHATAN AKTIF:** Kamu mendaftar **${plan.icon} ${plan.name}** (Premi Rp ${plan.annualPremium} Jt/thn • Cover RS ${Math.round(plan.coverage * 100)}%).`, "money");
+        showToast(`✅ ${plan.name} aktif!`);
+        if (currentModalType === "karir") renderKarirSheet("aset");
+        else if (currentModalType === "upgrade") renderUpgradeSheet("kesehatan");
+        updateUI();
+    }
+
+    function cancelHealthInsurancePolicy() {
+        if (!hasActiveHealthInsurance()) return;
+        const oldName = player.healthInsurance.name;
+        player.healthInsurance = null;
+        addLog(`🏥 **POLIS ASURANSI KESEHATAN DIBATALKAN:** Kamu membatalkan **${oldName}**.`, "normal");
+        showToast(`${oldName} dibatalkan.`);
+        if (currentModalType === "karir") renderKarirSheet("aset");
+        else if (currentModalType === "upgrade") renderUpgradeSheet("kesehatan");
+        updateUI();
+    }
+
     function syncLifeInsuranceState() {
         if (!player) return null;
         if (!player.lifeInsurance) {
@@ -4678,7 +5104,8 @@
 
         ins.criticalIllnessClaimed = true;
         ins.waiverActive = true;
-        const payout = roundMoney((ins.sumAssured || 600) * 0.5); // 50% = Rp 300 Jt
+        const critRatio = typeof ins.critPct === 'number' ? ins.critPct : 0.5;
+        const payout = roundMoney((ins.sumAssured || 600) * critRatio);
         player.money = roundMoney(player.money + payout);
         playGameSound("coin");
         addLog(`🛡️ **KLAIM SAKIT KRITIS ASURANSI JIWA VIP:** Karena mengalami **${causeText}**, kamu menerima santunan sakit kritis **50% (+${formatShortJuta(payout)})** dan **Bebas Premi (Rp 0/thn)**! Perlindungan medis & santunan meninggal dunia **100% (Rp 600 Jt)** tetap aktif.`, "money");
@@ -5921,6 +6348,10 @@
         if (lifeInsPrem > 0) {
             cost += lifeInsPrem;
         }
+        const healthInsPrem = getHealthInsuranceAnnualPremium();
+        if (healthInsPrem > 0) {
+            cost += healthInsPrem;
+        }
 
         // Gaji Karyawan Bisnis Aktif
         cost += businessUpkeep;
@@ -6235,8 +6666,13 @@
             bHtml += `<span class="mini-badge" style="color:#7e22ce; background:#f3e8ff;">🎗️ ${player.politicalParty.name}</span>`;
         }
         if (hasActiveLifeInsurance()) {
-            const insBadgeText = player.lifeInsurance.waiverActive ? "🛡️ Asuransi Jiwa VIP (Bebas Premi)" : "🛡️ Asuransi Jiwa VIP (25 Jt/thn)";
+            const li = player.lifeInsurance;
+            const insBadgeText = li.waiverActive ? `${li.icon || '🛡️'} ${li.name || 'Asuransi Jiwa'} (Bebas Premi)` : `${li.icon || '🛡️'} ${li.name || 'Asuransi Jiwa'}`;
             bHtml += `<span class="mini-badge" style="color:#0369a1; background:#e0f2fe; border-color:#38bdf8;">${insBadgeText}</span>`;
+        }
+        if (hasActiveHealthInsurance()) {
+            const hi = player.healthInsurance;
+            bHtml += `<span class="mini-badge" style="color:#047857; background:#d1fae5; border-color:#34d399;">${hi.icon || '🏥'} ${hi.name} (${Math.round(hi.coverage * 100)}%)</span>`;
         }
         badgesEl.innerHTML = bHtml;
 
@@ -6659,25 +7095,94 @@
             addLog(`🎒 Usia 6 Tahun! Saatnya memilih **Sekolah Dasar (SD)** di **${player.city.name}**. Teman barumu bernama **${f1.name}** (${f1.role}).`, "school");
             openSchoolEnrollmentDialog("sd", "Sekolah Dasar (SD)");
             ppdbTriggered = true;
-        } else if (player.age === 12) {
-            const f2 = createRandomFriend("school");
-            player.friends.push(f2);
-            addLog(`🎒 Kamu lulus SD dan memasuki seleksi **PPDB SMP** di **${player.city.name}**! Teman barumu bernama **${f2.name}** (${f2.role}).`, "school");
-            openSchoolEnrollmentDialog("smp", "SMP / Sederajat");
+        } else if ((player.age === 12 || player.schoolRepeatStage === "sd") && player.currentSchool && !player.droppedOut) {
             ppdbTriggered = true;
-        } else if (player.age === 15) {
-            const f3 = createRandomFriend("school");
-            player.friends.push(f3);
-            addLog(`🎒 Kamu lulus SMP dan memasuki seleksi **PPDB SMA/SMK** di **${player.city.name}**! Teman satu tongkronganmu bernama **${f3.name}** (${f3.role}).`, "school");
-            openSchoolEnrollmentDialog("smu", "SMA / SMK");
+            startGraduationExam("sd", "Ujian Kelulusan SD (Kelas 6)", "sd",
+                (sc) => {
+                    player.schoolFailStreak = 0;
+                    player.schoolRepeatStage = null;
+                    const f2 = createRandomFriend("school");
+                    player.friends.push(f2);
+                    addLog(`🎓 **LULUS UJIAN SD (${sc}/10):** Selamat! Kamu lulus SD dan masuk seleksi **PPDB SMP** di **${player.city.name}**!`, "school");
+                    openSchoolEnrollmentDialog("smp", "SMP / Sederajat");
+                },
+                (sc) => {
+                    player.schoolFailStreak = (player.schoolFailStreak || 0) + 1;
+                    if (player.schoolFailStreak >= 2) {
+                        player.currentSchool = null;
+                        player.schoolRepeatStage = null;
+                        player.droppedOut = true;
+                        modifyStats({ happy: -15, edu: -10 });
+                        addLog(`🚫 **PUTUS SEKOLAH / DO SD (${sc}/10):** Kamu gagal Ujian Kelulusan SD **2 tahun berturut-turut** dan resmi dinyatakan **Putus Sekolah (DO)**!`, "danger");
+                        showToast("🚫 Putus Sekolah (DO SD)!");
+                    } else {
+                        player.schoolRepeatStage = "sd";
+                        modifyStats({ happy: -8 });
+                        addLog(`📝 **MENGULANG KELAS 6 SD (${sc}/10):** Skor ujianmu belum mencapai 7/10. Kamu harus mengulang tahun akhir SD (1 kesempatan lagi sebelum DO)!`, "danger");
+                        showToast(`Gagal Ujian SD (${sc}/10) — Mengulang Kelas!`);
+                    }
+                }
+            );
+        } else if ((player.age === 15 || player.schoolRepeatStage === "smp") && player.currentSchool && !player.droppedOut) {
             ppdbTriggered = true;
+            startGraduationExam("smp", "Ujian Kelulusan SMP (Kelas 9)", "smp",
+                (sc) => {
+                    player.schoolFailStreak = 0;
+                    player.schoolRepeatStage = null;
+                    const f3 = createRandomFriend("school");
+                    player.friends.push(f3);
+                    addLog(`🎓 **LULUS UJIAN SMP (${sc}/10):** Selamat! Kamu lulus SMP dan masuk seleksi **PPDB SMA/SMK** di **${player.city.name}**!`, "school");
+                    openSchoolEnrollmentDialog("smu", "SMA / SMK");
+                },
+                (sc) => {
+                    player.schoolFailStreak = (player.schoolFailStreak || 0) + 1;
+                    if (player.schoolFailStreak >= 2) {
+                        player.currentSchool = null;
+                        player.schoolRepeatStage = null;
+                        player.droppedOut = true;
+                        modifyStats({ happy: -15, edu: -10 });
+                        addLog(`🚫 **PUTUS SEKOLAH / DO SMP (${sc}/10):** Kamu gagal Ujian Kelulusan SMP **2 tahun berturut-turut** dan resmi **Putus Sekolah (DO)**!`, "danger");
+                        showToast("🚫 Putus Sekolah (DO SMP)!");
+                    } else {
+                        player.schoolRepeatStage = "smp";
+                        modifyStats({ happy: -8 });
+                        addLog(`📝 **MENGULANG KELAS 9 SMP (${sc}/10):** Skor ujianmu belum mencapai 7/10. Kamu mengulang kelas 9 SMP!`, "danger");
+                        showToast(`Gagal Ujian SMP (${sc}/10) — Mengulang Kelas!`);
+                    }
+                }
+            );
         } else if (player.age === 17) {
             addLog("🪪 **USIA 17 TAHUN (PUNYA KTP & NPWP NIK):** Fitur **Ujian SIM (A / C / B1 / B2), Profesi Driver, Clubbing Malam, Pacaran & Menikah** kini terbuka!", "love");
             triggerAge17EyeCheckEvent();
             ppdbTriggered = true;
-        } else if (player.age === 18) {
-            player.currentSchool = null;
-            addLog(`🎓 Kamu resmi **Lulus SMA** di **${player.city.name}**! Kini memasuki Fase Produktif (18-59 Thn): buka menu **💼 Karir/Aset** untuk daftar **Universitas**, melamar **12 Pekerjaan Khas ${player.city.name}**, atau **Merantau Pindah Kota**.`, "school");
+        } else if ((player.age === 18 || player.schoolRepeatStage === "sma") && player.currentSchool && !player.droppedOut) {
+            ppdbTriggered = true;
+            startGraduationExam("sma", "Ujian Kelulusan SMA/SMK (Kelas 12)", "sma",
+                (sc) => {
+                    player.schoolFailStreak = 0;
+                    player.schoolRepeatStage = null;
+                    player.currentSchool = null;
+                    player.graduatedSMA = true;
+                    addLog(`🎓 **LULUS UJIAN SMA (${sc}/10):** Selamat! Kamu resmi **Lulus SMA** di **${player.city.name}**! Kini kamu bisa mendaftar Universitas atau melamar pekerjaan kota.`, "school");
+                    showToast(`🎉 Lulus SMA (${sc}/10)!`);
+                },
+                (sc) => {
+                    player.schoolFailStreak = (player.schoolFailStreak || 0) + 1;
+                    if (player.schoolFailStreak >= 2) {
+                        player.currentSchool = null;
+                        player.schoolRepeatStage = null;
+                        player.droppedOut = true;
+                        modifyStats({ happy: -15, edu: -10 });
+                        addLog(`🚫 **PUTUS SEKOLAH / DO SMA (${sc}/10):** Kamu gagal Ujian Kelulusan SMA **2 tahun berturut-turut** dan resmi **Putus Sekolah (DO)**!`, "danger");
+                        showToast("🚫 Putus Sekolah (DO SMA)!");
+                    } else {
+                        player.schoolRepeatStage = "sma";
+                        modifyStats({ happy: -8 });
+                        addLog(`📝 **MENGULANG KELAS 12 SMA (${sc}/10):** Skor ujianmu belum mencapai 7/10. Kamu mengulang kelas 12 SMA!`, "danger");
+                        showToast(`Gagal Ujian SMA (${sc}/10) — Mengulang Kelas!`);
+                    }
+                }
+            );
         } else if (player.age === 60) {
             player.retired = true;
             player.sideJobs = [];
@@ -6703,19 +7208,45 @@
             player.money = Math.round((player.money - player.university.costPerYear) * 10) / 10;
             modifyStats({ edu: Math.round(player.university.eduGain / 4) });
             if (player.collegeYearsLeft <= 0) {
-                player.inCollege = false;
+                ppdbTriggered = true;
                 const level = player.inCollegeLevel || 1;
-                let degreePrefix = "S1";
-                let degreeTitle = "SARJANA S1";
-                if (level === 1) { player.hasDegreeS1 = true; player.hasDegree = true; }
-                else if (level === 2) { player.hasDegreeS2 = true; degreePrefix = "S2"; degreeTitle = "MAGISTER S2"; }
-                else if (level === 3) { player.hasDegreeS3 = true; degreePrefix = "S3"; degreeTitle = "DOKTOR S3"; }
-                
-                player.degreeName = `${degreePrefix} ${player.university.name}`;
-                modifyStats({ edu: 10, social: player.university.socialGain, happy: 12 });
-                addLog(`🎓 **WISUDA ${degreeTitle}:** Selamat! Kamu lulus dari **${player.university.name}** jurusan **${player.majorName}**!`, "school");
-                player.university = null;
-                player.inCollegeLevel = 0;
+                const degreePrefix = level === 1 ? "S1" : (level === 2 ? "S2" : "S3");
+                const degreeTitle = level === 1 ? "SARJANA S1" : (level === 2 ? "MAGISTER S2" : "DOKTOR S3");
+                const majorKey = player.majorId || "ekonomi";
+                startGraduationExam("college", `Sidang Akhir ${degreePrefix} (${player.majorName})`, majorKey,
+                    (sc) => {
+                        player.collegeFailStreak = 0;
+                        player.inCollege = false;
+                        if (level === 1) { player.hasDegreeS1 = true; player.hasDegree = true; }
+                        else if (level === 2) { player.hasDegreeS2 = true; }
+                        else if (level === 3) { player.hasDegreeS3 = true; }
+                        player.degreeName = `${degreePrefix} ${player.university.name}`;
+                        modifyStats({ edu: 10, social: player.university.socialGain, happy: 12 });
+                        addLog(`🎓 **WISUDA ${degreeTitle} (${sc}/10):** Selamat! Kamu lulus sidang akhir jurusan **${player.majorName}** di **${player.university.name}**!`, "school");
+                        showToast(`🎓 Wisuda ${degreePrefix} (${sc}/10)!`);
+                        player.university = null;
+                        player.inCollegeLevel = 0;
+                    },
+                    (sc) => {
+                        player.collegeFailStreak = (player.collegeFailStreak || 0) + 1;
+                        if (player.collegeFailStreak >= 2) {
+                            const oldU = player.university ? player.university.name : "Kampus";
+                            player.inCollege = false;
+                            player.university = null;
+                            player.inCollegeLevel = 0;
+                            player.collegeYearsLeft = 0;
+                            player.collegeFailStreak = 0;
+                            modifyStats({ happy: -18, edu: -8 });
+                            addLog(`🚫 **DROP OUT (DO) DARI ${oldU.toUpperCase()} (${sc}/10):** Karena tidak lulus sidang akhir **2 tahun berturut-turut**, kamu resmi di-**Drop Out (DO)**!`, "danger");
+                            showToast("🚫 Drop Out (DO) dari Universitas!");
+                        } else {
+                            player.collegeYearsLeft = 1;
+                            modifyStats({ happy: -8 });
+                            addLog(`📝 **MENGULANG TAHUN AKHIR ${degreePrefix} (${sc}/10):** Skor sidangmu belum mencapai 7/10. Kamu wajib mengulang 1 tahun terakhir (1 kesempatan lagi sebelum DO)!`, "danger");
+                            showToast(`Gagal Sidang (${sc}/10) — Mengulang 1 Tahun!`);
+                        }
+                    }
+                );
             } else {
                 addLog(`📚 Kuliah S${player.inCollegeLevel || 1} jurusan **${player.majorName}** di **${player.university.name}** (Sisa ${player.collegeYearsLeft} tahun). UKT: -Rp ${player.university.costPerYear} Jt.`, "school");
             }
@@ -8138,31 +8669,47 @@
 
             ASSETS.forEach((as, idx) => {
                 if (as.id === "asuransi") {
-                    const isInsActive = hasActiveLifeInsurance();
-                    const ins = syncLifeInsuranceState();
-                    const card = document.createElement("div");
-                    card.className = "item-card";
-                    if (isInsActive) card.style.borderColor = "#0284c7";
-                    card.innerHTML = `
-                        <div class="item-row">
-                            <div>
-                                <span style="font-size:9.5px; font-weight:900; color:#0284c7;">🛡️ PROTEKSI JIWA & MEDIS VIP (MAKS 1 POLIS • BISA CANCEL KAPAN SAJA)</span>
-                                <div class="item-title" style="margin-top:2px;">${as.icon} ${as.name} ${isInsActive ? '<span style="color:#16a34a;">(AKTIF)</span>' : ''}</div>
-                                <div style="font-size:11px; color:${isInsActive && ins.waiverActive ? '#16a34a' : '#b45309'}; font-weight:900;">
-                                    ${isInsActive && ins.waiverActive ? '✅ BEBAS PREMI (Rp 0 / tahun — Klaim Sakit Kritis Aktif)' : 'Premi: Rp 25 Jt / tahun (Bebas PPN)'}
-                                </div>
-                                <div class="item-desc">
-                                    • <b>Benefit Medis:</b> Semua biaya rumah sakit, Penang/Singapura, obat & ambulans VIP <b>dicover 100% (Rp 0)</b>.<br>
-                                    • <b>Sakit Kritis (≤25% / Darurat):</b> <b>Bebas premi Rp 0/thn</b> + santunan tunai <b>50% (Rp 300 Jt)</b>.<br>
-                                    • <b>Santunan Meninggal Dunia (Pemegang Polis / Pasangan / Orang Tua):</b> Cair <b>100% senilai Rp 600 Jt</b>!
-                                </div>
-                            </div>
-                        </div>
-                        ${isInsActive
-                            ? `<button class="btn-action btn-rose" onclick="cancelLifeInsurancePolicy()">❌ Cancel Polis Asuransi Jiwa VIP Kapan Saja</button>`
-                            : `<button class="btn-action btn-primary" onclick="buyAssetItem(${idx})">🛡️ Daftar Polis Asuransi Jiwa VIP (Rp 25 Jt / Tahun)</button>`}
+                    const isLifeActive = hasActiveLifeInsurance();
+                    const curLife = syncLifeInsuranceState();
+                    const lifeCard = document.createElement("div");
+                    lifeCard.className = "item-card";
+                    lifeCard.style.borderColor = "#0284c7";
+                    let lifeBtns = LIFE_INSURANCE_PLANS.map(p => {
+                        const isThis = isLifeActive && curLife.planId === p.id;
+                        const ageBlocked = player.age > p.maxEntryAge;
+                        return `<button class="btn-action ${isThis ? 'btn-emerald' : (ageBlocked ? 'btn-dark' : 'btn-primary')}" style="text-align:left;" onclick="subscribeLifeInsurance('${p.id}')">
+                            ${isThis ? '✅ AKTIF:' : (ageBlocked ? '🔒 USIA LEWAT:' : '🛡️ Pilih:')} <b>${p.icon} ${p.name}</b> — Rp ${p.annualPremium} Jt/thn<br>
+                            <span style="font-size:9.5px; font-weight:600;">${p.desc}</span>
+                        </button>`;
+                    }).join("");
+                    lifeCard.innerHTML = `
+                        <div class="item-title">🛡️ Asuransi Jiwa VIP (Biru • Merah • Hijau)</div>
+                        <div class="item-desc">Melindungi finansial keluarga dengan Santunan Meninggal Dunia & Santunan Penyakit Kritis + Bebas Premi.</div>
+                        <div style="display:flex; flex-direction:column; gap:6px;">${lifeBtns}</div>
+                        ${isLifeActive ? `<button class="btn-action btn-rose" onclick="cancelLifeInsurancePolicy()">❌ Cancel ${curLife.name || 'Asuransi Jiwa'}</button>` : ''}
                     `;
-                    bodyEl.appendChild(card);
+                    bodyEl.appendChild(lifeCard);
+
+                    const isHealthActive = hasActiveHealthInsurance();
+                    const curHealth = player.healthInsurance;
+                    const healthCard = document.createElement("div");
+                    healthCard.className = "item-card";
+                    healthCard.style.borderColor = "#16a34a";
+                    let healthBtns = HEALTH_INSURANCE_PLANS.map(p => {
+                        const isThis = isHealthActive && curHealth.planId === p.id;
+                        const ageBlocked = player.age > p.maxEntryAge;
+                        return `<button class="btn-action ${isThis ? 'btn-emerald' : (ageBlocked ? 'btn-dark' : 'btn-gold')}" style="text-align:left;" onclick="subscribeHealthInsurance('${p.id}')">
+                            ${isThis ? '✅ AKTIF:' : (ageBlocked ? '🔒 USIA LEWAT:' : '🏥 Pilih:')} <b>${p.icon} ${p.name}</b> — Rp ${p.annualPremium} Jt/thn<br>
+                            <span style="font-size:9.5px; font-weight:600;">${p.desc}</span>
+                        </button>`;
+                    }).join("");
+                    healthCard.innerHTML = `
+                        <div class="item-title">🏥 Asuransi Kesehatan VIP (Biru • Merah • Hijau)</div>
+                        <div class="item-desc">Menanggung 90%–100% biaya rumah sakit, RS Penang/Singapura & santunan tunai rawat inap!</div>
+                        <div style="display:flex; flex-direction:column; gap:6px;">${healthBtns}</div>
+                        ${isHealthActive ? `<button class="btn-action btn-rose" onclick="cancelHealthInsurancePolicy()">❌ Cancel ${curHealth.name}</button>` : ''}
+                    `;
+                    bodyEl.appendChild(healthCard);
                     return;
                 }
 
@@ -8494,18 +9041,19 @@
             return;
         }
 
-        player.sideJobs.push({
-            id: pt.id,
-            title: pt.title,
-            icon: pt.icon,
-            hourlyRateRb: pt.hourlyRateRb,
-            hours: hoursChosen
+        startJobInterviewQuiz(pt.title, () => {
+            player.sideJobs.push({
+                id: pt.id,
+                title: pt.title,
+                icon: pt.icon,
+                hourlyRateRb: pt.hourlyRateRb,
+                hours: hoursChosen
+            });
+            const annualEst = roundMoney((pt.hourlyRateRb * hoursChosen * 52) / 1000);
+            addLog(`⏱️ **KERJA SAMPINGAN PER JAM:** Lolos interview! Kamu mulai bekerja paruh waktu sebagai **${pt.icon} ${pt.title}** selama **${hoursChosen} jam/minggu** (**+Rp ${annualEst} Jt/tahun**).`, "career");
+            showToast(`Mulai sampingan ${pt.title} (${hoursChosen}j/mgg)!`);
+            renderKarirSheet("kerja");
         });
-
-        const annualEst = roundMoney((pt.hourlyRateRb * hoursChosen * 52) / 1000);
-        addLog(`⏱️ **KERJA SAMPINGAN PER JAM:** Kamu mulai bekerja paruh waktu sebagai **${pt.icon} ${pt.title}** selama **${hoursChosen} jam/minggu** dengan upah Rp ${pt.hourlyRateRb}.000/jam (**+Rp ${annualEst} Jt/tahun**). Total jam kerjamu kini **${getUsedWorkHours()}/40 jam/minggu**.`, "career");
-        showToast(`Mulai sampingan ${pt.title} (${hoursChosen}j/mgg)!`);
-        renderKarirSheet("kerja");
     }
 
     function quitSideJob(ptId) {
@@ -8555,27 +9103,28 @@
             return;
         }
 
-        const startSalary = calcSpecialCareerSalary(sc);
-        player.job = {
-            id: sc.id,
-            title: sc.title,
-            category: sc.category,
-            city: player.city.name,
-            icon: sc.icon,
-            salary: startSalary,
-            taxType: "pph21",
-            isSpecialCareer: true,
-            fullTimeOnly: true
-        };
-        player.jobHours = 40;
-        player.salary = startSalary;
-        player.yearsWorked = 0;
-        getCareerProgress(sc.category);
-
-        modifyStats({ happy: randInt(8, 15), social: randInt(5, 12) });
-        addLog(`🌟 **LOLOS AUDISI KARIR BINTANG (40 JAM/MGG):** Berkat keunggulan parameter dirimu, kamu resmi dikontrak Full-Time sebagai **${sc.icon} ${sc.title}** dengan nilai kontrak **Rp ${startSalary} Jt/tahun**!`, "career");
-        showToast(`Resmi menjadi ${sc.title}!`);
-        renderKarirSheet("bintang");
+        startJobInterviewQuiz(sc.title, () => {
+            const startSalary = calcSpecialCareerSalary(sc);
+            player.job = {
+                id: sc.id,
+                title: sc.title,
+                category: sc.category,
+                city: player.city.name,
+                icon: sc.icon,
+                salary: startSalary,
+                taxType: "pph21",
+                isSpecialCareer: true,
+                fullTimeOnly: true
+            };
+            player.jobHours = 40;
+            player.salary = startSalary;
+            player.yearsWorked = 0;
+            getCareerProgress(sc.category);
+            modifyStats({ happy: randInt(8, 15), social: randInt(5, 12) });
+            addLog(`🌟 **LOLOS AUDISI KARIR BINTANG (40 JAM/MGG):** Kamu lolos audisi & resmi dikontrak Full-Time sebagai **${sc.icon} ${sc.title}** (Kontrak **Rp ${startSalary} Jt/tahun**)!`, "career");
+            showToast(`Resmi menjadi ${sc.title}!`);
+            renderKarirSheet("bintang");
+        });
     }
 
     function applyCityJob(jobIdx, useOrdal, requestedHours = 40) {
@@ -8688,15 +9237,21 @@
             return;
         }
 
-        if (jb.reqCapital > 0) {
-            player.money = roundMoney(player.money - jb.reqCapital * 0.25); // Setoran modal awal 25%
-        }
-        player.job = jb;
-        player.jobHours = hours;
-        player.salary = finalSalary;
-        player.yearsWorked = 0;
-        const fw = createRandomFriend("work");
-        player.friends.push(fw);
+        startJobInterviewQuiz(jb.title, () => {
+            if (jb.reqCapital > 0) {
+                player.money = roundMoney(player.money - jb.reqCapital * 0.25);
+            }
+            player.job = jb;
+            player.jobHours = hours;
+            player.salary = finalSalary;
+            player.yearsWorked = 0;
+            const fw = createRandomFriend("work");
+            player.friends.push(fw);
+            addLog(`💼 **DITERIMA BEKERJA (${hours === 40 ? 'FULL-TIME 40 JAM' : 'PART-TIME 20 JAM'}):** Selamat! Kamu lolos wawancara kerja dan resmi diterima sebagai **${jb.icon} ${jb.title}** di **${player.city.name}** (Gaji Rp ${finalSalary} Jt/thn)!`, "career");
+            showToast(`Diterima sebagai ${jb.title}!`);
+            renderKarirSheet("kerja");
+        });
+        return;
 
         addLog(`💼 **DITERIMA BEKERJA (${hours === 40 ? 'FULL-TIME 40 JAM' : 'PART-TIME 20 JAM'}):** Selamat! Kamu diterima sebagai **${jb.icon} ${jb.title}** di **${player.city.name}** dengan penghasilan **Rp ${finalSalary} Jt/tahun**. Rekan kerja barumu bernama **${fw.name}**.`, "career");
         showToast(`Bekerja sebagai ${jb.title} (${hours}j/mgg)!`);
@@ -10394,8 +10949,9 @@
         }
 
         if (type === "baby") {
-            if (player.age > 58 || p.age > 52) {
-                showToast("Faktor usia membuat peluang memiliki anak secara alami sudah tidak memungkinkan.");
+            const motherAge = player.gender === "Perempuan" ? player.age : p.age;
+            if (motherAge > 50) {
+                showToast("Batas usia melahirkan aman adalah 50 tahun! Tidak dapat menjalani program hamil alami.");
                 return;
             }
             consumeRelQuota(p);
@@ -10619,7 +11175,8 @@
         modifyStats({ happy: happyGain, health: -randInt(1, 4) });
 
         // Jika memakai pengaman = 100% aman (0% hamil), jika tidak memakai = 50% aman : 50% tidak aman
-        const isNotSafeTriggered = !useProtection && Math.random() < 0.50 && player.age <= 55;
+        const motherAgeOns = player.gender === "Perempuan" ? player.age : (c.age || 25);
+        const isNotSafeTriggered = !useProtection && Math.random() < 0.50 && motherAgeOns <= 50;
 
         if (isNotSafeTriggered) {
             const isFemalePlayer = player.gender === "Perempuan";
