@@ -1,0 +1,14 @@
+{
+  "appId": "com.warga62.simulator",
+  "appName": "Warga +62 Simulator",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "warga-62-simulator",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Warga +62 Simulator \u2014 Vercel Ready & APK Builder Ready (PWA + Capacitor)",
+  "scripts": {
+    "build": "mkdir -p www && cp index.html manifest.json sw.js icon-192.png icon-512.png apple-touch-icon.png www/ || true",
+    "apk:init": "npm run build && npx cap add android",
+    "apk:sync": "npm run build && npx cap sync android"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^6.0.0"
+  }
+}
