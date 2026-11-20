@@ -1413,7 +1413,7 @@
             <div style="text-align:center;">
                 <span style="font-size:10px; font-weight:900; color:#b45309; text-transform:uppercase;">🏛️ Dinas Dukcapil Republik +62</span>
                 <h2 style="font-size:17px; font-weight:900; color:#7c2d12; margin-top:2px;">Formulir Akta Kelahiran</h2>
-                <p style="font-size:11px; color:#6b5344; font-weight:700;">Ketik namamu sendiri atau pilih secara acak. Seluruh parameter & kasta keluarga dikunci 100% RNG!</p>
+                <p style="font-size:11px; color:#6b5344; font-weight:700;">Ketik namamu sendiri atau pilih secara acak.</p>
             </div>
             <div>
                 <label style="font-size:11px; font-weight:900; color:#4a3520; display:block; margin-bottom:5px;">Nama Lengkap Warga +62:</label>
@@ -1433,7 +1433,7 @@
             <div>
                 <label style="font-size:11px; font-weight:900; color:#4a3520; display:block; margin-bottom:5px;">Status Agama:</label>
                 <select id="selectBirthReligion" class="input-text" style="padding:8px 10px;">
-                    <option value="random">🎲 Acak (100% RNG)</option>
+                    <option value="random">🎲 Acak</option>
                     <option value="islam">☪️ Islam</option>
                     <option value="kristen">✝️ Kristen Protestan</option>
                     <option value="katolik">⛪ Katolik</option>
@@ -1445,16 +1445,16 @@
             <div>
                 <label style="font-size:11px; font-weight:900; color:#4a3520; display:block; margin-bottom:5px;">Kondisi Kelahiran (Orang Tua / Panti Asuhan):</label>
                 <select id="selectBirthFamilyOrigin" class="input-text" style="padding:8px 10px;">
-                    <option value="random">🎲 Acak (100% RNG)</option>
+                    <option value="random">🎲 Acak</option>
                     <option value="complete">👨‍👩‍👦 Orang Tua Lengkap (Ayah & Ibu)</option>
                     <option value="single_parent">👤 Satu Orang Tua (Single Parent)</option>
                     <option value="orphanage">🏠 Tanpa Orang Tua (Panti Asuhan)</option>
                 </select>
             </div>
             <div style="background:#f8f1df; border:2px solid #decb9f; border-radius:12px; padding:10px; font-size:11px; color:#5c4028; font-weight:700;">
-                🔒 <b style="color:#b45309;">Parameter & Takdir Terkunci 100% RNG:</b><br>
+                🔒 <b style="color:#b45309;">Parameter & Takdir Acak</b><br>
                 • 8 Kota Domisili & Sekolah (Jaksel SCBD, Depok, Bekasi, Surabaya, Bandung, Medan, Jogja, Bali)<br>
-                • Kasta Ekonomi Ortu (40% Gen Sandwich s/d 1% Anak Sultan)<br>
+                • Kasta Ekonomi Ortu<br>
                 • 5 Parameter Utama (Kebahagiaan, Kesehatan, Pendidikan, Looks, Sosial)
             </div>
             <button class="btn-action btn-gold" style="width:100%; padding:12px; font-size:13px;" onclick="confirmStartNewLife()">
@@ -3134,6 +3134,48 @@
         renderGradExamQuestion();
     }
 
+    function handleGraduationCheat() {
+        if (!activeGradExam || !player) return;
+        const exam = activeGradExam;
+        activeGradExam = null;
+
+        if (Math.random() < 0.25) {
+            // 25% berhasil mencontek dan lulus
+            playGameSound("coin");
+            addLog(`🤫 **BERHASIL MENCONTEK SAAT UJIAN:** Kamu nekat membuka catatan kecil di bawah meja pengawas dan lolos tanpa ketahuan!`, "anomaly");
+            if (typeof exam.onPass === "function") exam.onPass(8);
+            updateUI();
+        } else {
+            // 75% ketahuan guru/dosen -> langsung dikeluarkan dari sekolah/kampus (DO)
+            playGameSound("danger");
+            if (exam.stage === "college") {
+                const oldU = player.university ? player.university.name : "Kampus";
+                player.inCollege = false;
+                player.university = null;
+                player.inCollegeLevel = 0;
+                player.collegeYearsLeft = 0;
+                player.collegeFailStreak = 0;
+                modifyStats({ happy: -20, edu: -10, social: -10 });
+                addLog(`🚨 **KETAHUAN MENCONTEK & DI-DO DARI ${oldU.toUpperCase()}:** Pengawas ujian memergokimu mencontek saat sidang/ujian akhir! Kamu langsung dikeluarkan secara tidak hormat (DO) dari kampus.`, "danger");
+                showToast(`🚨 Ketahuan mencontek! Dikeluarkan dari ${oldU}!`);
+            } else {
+                const oldSch = player.currentSchool ? player.currentSchool.name : "Sekolah";
+                player.currentSchool = null;
+                player.schoolRepeatStage = null;
+                player.schoolFailStreak = 0;
+                player.droppedOut = true;
+                if (player.kipActive && !player.kipRevoked) {
+                    player.kipRevoked = true;
+                    player.kipActive = false;
+                }
+                modifyStats({ happy: -18, edu: -10, social: -8 });
+                addLog(`🚨 **KETAHUAN MENCONTEK & DIKELUARKAN DARI ${oldSch.toUpperCase()}:** Guru pengawas memergokimu mencontek saat ujian kelulusan! Kamu langsung dikeluarkan dari sekolah.`, "danger");
+                showToast(`🚨 Ketahuan mencontek! Dikeluarkan dari ${oldSch}!`);
+            }
+            updateUI();
+        }
+    }
+
     function renderGradExamQuestion() {
         if (!activeGradExam) return;
         const qObj = activeGradExam.questions[activeGradExam.index];
@@ -3162,6 +3204,13 @@
                 }
             }
         }));
+        const cheatLabel = activeGradExam.stage === "college"
+            ? "👀 Mencontek / Buka Catatan Diam-Diam"
+            : "👀 Mencontek Teman / Buka Catatan";
+        choices.push({
+            text: cheatLabel,
+            fn: () => handleGraduationCheat()
+        });
         showPopupEvent(
             "📝",
             `${activeGradExam.titleLabel} — Soal ${activeGradExam.index + 1}/10`,
@@ -5340,7 +5389,7 @@
             name: "Mobil Baru / Paket Ibadah VIP / Jam Mewah",
             icon: "🚗",
             cost: 150,
-            desc: "Persembahan level Sultan! Namun tetap bergantung 100% RNG penerimanya."
+            desc: "Persembahan level Sultan! Namun tetap bergantung acak penerimanya."
         }
     ];
 
@@ -5815,7 +5864,7 @@
         }
     }
 
-    // Popup Pilihan Hadiah (Murah s/d Sultan) dengan Reaksi 100% RNG tanpa menampilkan angka
+    // Popup Pilihan Hadiah (Murah s/d Sultan) dengan Reaksi acak tanpa menampilkan angka
     function openGiftModal(targetType, targetIdx = 0) {
         if (!player) return;
         let target = null;
@@ -5851,7 +5900,7 @@
         if (!canMaintainRelWith(target)) return;
 
         const choices = GIFT_CATALOG.map(gift => ({
-            text: `${gift.icon} <b>${gift.name}</b> — <span style="color:#fbbf24;">${formatShortJuta(gift.cost)}</span><br><span style="font-size:10px; color:#9ca3af;">${gift.desc} (Reaksi 100% RNG)</span>`,
+            text: `${gift.icon} <b>${gift.name}</b> — <span style="color:#fbbf24;">${formatShortJuta(gift.cost)}</span><br><span style="font-size:10px; color:#9ca3af;">${gift.desc} (Reaksi acak)</span>`,
             fn: () => executeGiveGift(target, gift, returnTab)
         }));
 
@@ -5863,9 +5912,9 @@
         showPopupEvent(
             "🎁",
             `Pilih Hadiah untuk ${target.name}`,
-            `Pilih hadiah mulai dari yang murah hingga mewah untuk membina hubungan dengan <b>${target.name}</b>.<br><span style="color:#fcd34d; font-size:11px;">⚠️ Reaksi penerima 100% RNG (Bisa sangat suka, biasa saja, atau malah tersinggung/curiga!). Sisa kuota relasi tahun ini: <b>${MAX_REL_ACTIONS_PER_YEAR - (player.relActionsThisYear || 0)}/${MAX_REL_ACTIONS_PER_YEAR}</b>.</span>`,
+            `Pilih hadiah mulai dari yang murah hingga mewah untuk membina hubungan dengan <b>${target.name}</b>.<br><span style="color:#fcd34d; font-size:11px;">⚠️ Reaksi penerima acak (Bisa sangat suka, biasa saja, atau malah tersinggung/curiga!). Sisa kuota relasi tahun ini: <b>${MAX_REL_ACTIONS_PER_YEAR - (player.relActionsThisYear || 0)}/${MAX_REL_ACTIONS_PER_YEAR}</b>.</span>`,
             choices,
-            "🎁 MAINTAIN RELASI (100% RNG)"
+            "🎁 MAINTAIN RELASI "
         );
     }
 
@@ -6364,7 +6413,7 @@
     }
 
     // =========================================================================
-    // 4. PRE-GAME: AKTA KELAHIRAN DUKCAPIL +62 (100% RNG STATS)
+    // 4. PRE-GAME: AKTA KELAHIRAN DUKCAPIL +62 (acak STATS)
     // =========================================================================
     function openSplashScreenModal() {
         document.getElementById("endModal").classList.add("hidden");
@@ -6415,7 +6464,7 @@
         const family = rollWeightedFamily(0);
         const trait = pickRandom(TRAITS);
 
-        // 100% RNG untuk 5 Parameter Utama
+        // acak untuk 5 Parameter Utama
         const rngStats = {
             happy: randInt(25, 85),
             health: randInt(35, 92),
@@ -6552,7 +6601,7 @@
         } else if (player.parents.length >= 2) {
             addLog(`👨‍👩‍👦 **KONDISI EKONOMI ORANG TUA:** Ayah (**${player.parents[0].name}**) & Ibu (**${player.parents[1].name}**) memiliki total tabungan keluarga **${formatShortJuta(combinedParentWealth)}** (Penghasilan Ortu: Rp ${player.family.parentIncome} Jt/thn) • Proteksi Medis Ortu: **${player.parentInsurance.icon} ${player.parentInsurance.name}** (${Math.round(player.parentInsurance.coverage * 100)}% cover). ${player.kipActive ? '💳 Kamu terdaftar penerima **Kartu Indonesia Pintar (KIP)**!' : ''}`, "normal");
         }
-        addLog(`🎲 **TAKDIR AWAL (100% RNG):** Kamu lahir membawa karakteristik unik **${player.trait.icon} ${player.trait.name}**. Amati perkembangan ke-5 bar parameter hidupmu di bagian bawah layar!`, "normal");
+        addLog(`🎲 **TAKDIR AWAL :** Kamu lahir membawa karakteristik unik **${player.trait.icon} ${player.trait.name}**. Amati perkembangan ke-5 bar parameter hidupmu di bagian bawah layar!`, "normal");
 
         updateUI();
         showToast("Selamat lahir ke Dunia +62!");
@@ -6664,6 +6713,9 @@
         }
         if (player.politicalParty) {
             bHtml += `<span class="mini-badge" style="color:#7e22ce; background:#f3e8ff;">🎗️ ${player.politicalParty.name}</span>`;
+        }
+        if (player.hasYayasan) {
+            bHtml += `<span class="mini-badge" style="color:#0369a1; background:#e0f2fe; border-color:#38bdf8;">🏛️ Pemilik Yayasan</span>`;
         }
         if (hasActiveLifeInsurance()) {
             const li = player.lifeInsurance;
@@ -7506,7 +7558,7 @@
         } else if (fnName === "upgrade") {
             if (iconEl) iconEl.textContent = "🧘";
             if (titleEl) titleEl.textContent = "MIND & BODY (UPGRADE DIRI)";
-            if (subEl) subEl.textContent = "Pengembangan diri 100% RNG sesuai fase usia";
+            if (subEl) subEl.textContent = "Pengembangan diri acak sesuai fase usia";
         }
 
         if (fnName === "karir") {
@@ -8571,7 +8623,7 @@
             cryptoHeader.style.background = "#090d16";
             cryptoHeader.style.borderColor = "#38bdf8";
             cryptoHeader.innerHTML = `
-                <div class="item-title" style="color:#38bdf8;">📊 Bursa Saham IHSG & Pasar Crypto +62 (100% RNG)</div>
+                <div class="item-title" style="color:#38bdf8;">📊 Bursa Saham IHSG & Pasar Crypto +62 </div>
                 <div class="item-desc" style="color:#e5e7eb;">
                     Harga saham dan koin kripto bergerak liar dan <b>tidak dapat diprediksi</b> setiap pergantian tahun (<b>+1 Tahun</b>). Bisa naik ratusan persen (To The Moon / ARA) atau anjlok drastis (ARB / Rugpull)!
                 </div>
@@ -9470,7 +9522,7 @@
     }
 
     // =========================================================================
-    // 10. SHEET 2: UPGRADE DIRI SESUAI FASE USIA (100% RNG & TANPA ANGKA)
+    // 10. SHEET 2: UPGRADE DIRI SESUAI FASE USIA (acak & TANPA ANGKA)
     // =========================================================================
     function renderUpgradeSheet(tab) {
         currentSubTab = tab;
@@ -9490,10 +9542,10 @@
         rngNotice.style.background = "#090d16";
         rngNotice.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:11px; font-weight:900; color:#fbbf24;">🎲 MODE REALITA 100% RNG (TANPA BOCORAN ANGKA)</span>
+                <span style="font-size:11px; font-weight:900; color:#fbbf24;">🎲 MODE REALITA acak (TANPA BOCORAN ANGKA)</span>
                 <span style="font-size:10px; color:#9ca3af; font-weight:800;">Aksi Tahun Ini: ${player.actionsThisYear}/5</span>
             </div>
-            <div class="item-desc">Hasil setiap kegiatan pengembangan diri ditentukan <b>100% RNG</b> (bisa sangat efektif, biasa saja, atau justru gagal/burnout/cedera) tanpa menampilkan angka mutlak. Perhatikan perubahan alami pada bar parameter di bawah layar!</div>
+            <div class="item-desc">Hasil setiap kegiatan pengembangan diri ditentukan <b>acak</b> (bisa sangat efektif, biasa saja, atau justru gagal/burnout/cedera) tanpa menampilkan angka mutlak. Perhatikan perubahan alami pada bar parameter di bawah layar!</div>
         `;
         bodyEl.appendChild(rngNotice);
 
@@ -10098,7 +10150,7 @@
                             <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('parent', ${idx})">💸 Kasih Uang (Nominal Bebas)<br><span style="font-size:9px; font-weight:600;">Tambah Saldo & Aset Ortu</span></button>
                         <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc(\'parent\', ${idx})">🔪 Percobaan Pembunuhan</button>
                             <button class="btn-action btn-gold" onclick="openGiftModal('parent', ${idx})">🎁 Beri Hadiah Barang<br><span style="font-size:9px; font-weight:600;">Pilih Murah s/d Sultan</span></button>
-                            <button class="btn-action btn-primary" onclick="parentAction(${idx}, 'visit')">🙏 Sungkem & Silaturahmi<br><span style="font-size:9px; font-weight:600;">Gratis • 100% RNG</span></button>
+                            <button class="btn-action btn-primary" onclick="parentAction(${idx}, 'visit')">🙏 Sungkem & Silaturahmi<br><span style="font-size:9px; font-weight:600;">Gratis </span></button>
                             <button class="btn-action btn-dark" onclick="parentAction(${idx}, 'ask_money')">🤲 Minta Bantuan Uang<br><span style="font-size:9px; font-weight:600;">Sesuai Saldo Aktual Ortu</span></button>
                             <button class="btn-action btn-rose" style="grid-column: span 2;" onclick="parentAction(${idx}, 'argue')">💢 Berdebat Masalah Hidup (Rawan Kena Kutuk!)</button>
                         </div>
@@ -10146,7 +10198,7 @@
                         <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc(\'inlaws\', 0)">🔪 Percobaan Pembunuhan</button>
                         <button class="btn-action btn-gold" onclick="openGiftModal('inlaws', 0)">🎁 Bawakan Hadiah Mertua<br><span style="font-size:9px; font-weight:600;">Pilih Murah s/d Sultan</span></button>
                         <button class="btn-action btn-primary" onclick="inLawAction('ask_capital')">🏦 Minta Suntikan Modal<br><span style="font-size:9px; font-weight:600;">Wajib Sudah Menikah Resmi</span></button>
-                        <button class="btn-action btn-dark" onclick="inLawAction('visit')">🍵 Kunjungi Rumah Mertua<br><span style="font-size:9px; font-weight:600;">Gratis • 100% RNG</span></button>
+                        <button class="btn-action btn-dark" onclick="inLawAction('visit')">🍵 Kunjungi Rumah Mertua<br><span style="font-size:9px; font-weight:600;">Gratis </span></button>
                         <button class="btn-action btn-rose" style="grid-column: span 2;" onclick="inLawAction('fight')">💢 Adu Mulut dgn Mertua (Rumah Tangga Rawan Goyah)</button>
                     </div>
                 `;
@@ -10240,7 +10292,7 @@
                     <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('partner', 0)">💸 Kasih Uang ke Pasangan<br><span style="font-size:9px; font-weight:600;">Tentukan Nominal Bebas</span></button>
                         <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc(\'partner\', 0)">🔪 Percobaan Pembunuhan</button>
                     <button class="btn-action btn-gold" onclick="openGiftModal('partner', 0)">🎁 Beri Hadiah Romantis<br><span style="font-size:9px; font-weight:600;">Pilih Murah s/d Sultan</span></button>
-                    <button class="btn-action btn-pink" onclick="partnerQualityActivity('date')">🍽️ Quality Time & Kencan<br><span style="font-size:9px; font-weight:600;">Rp 1 Jt • Hasil 100% RNG</span></button>
+                    <button class="btn-action btn-pink" onclick="partnerQualityActivity('date')">🍽️ Quality Time & Kencan<br><span style="font-size:9px; font-weight:600;">Rp 1 Jt • Hasil acak</span></button>
                     <button class="btn-action btn-primary" onclick="partnerQualityActivity('glowup')">✨ Belikan Skincare & Gym<br><span style="font-size:9px; font-weight:600;">Rp 4 Jt • Upgrade Pasangan</span></button>
                     <button class="btn-action btn-emerald" style="grid-column: span 2;" onclick="partnerQualityActivity('baby')">👶 Program Hamil / Intim (Peluang Punya Anak RNG)</button>
                 </div>
@@ -10274,7 +10326,7 @@
             clubIntro.className = "item-card";
             clubIntro.innerHTML = `
                 <div class="item-title">🪩 Nightclub & Lounge Skena +62</div>
-                <div class="item-desc">Buka meja (open table) untuk bertemu kenalan baru secara <b>100% RNG</b>. Kamu bisa langsung mengajak pacaran atau kencan semalam yang berisiko <b>hamil/menghamili di luar nikah</b>!</div>
+                <div class="item-desc">Buka meja (open table) untuk bertemu kenalan baru secara <b>acak</b>. Kamu bisa langsung mengajak pacaran atau kencan semalam yang berisiko <b>hamil/menghamili di luar nikah</b>!</div>
                 <button class="btn-action btn-pink" onclick="goClubbingSearch()">🥂 Masuk Club & Cari Kenalan Baru (Rp 1,5 Jt)</button>
             `;
             bodyEl.appendChild(clubIntro);
@@ -10307,20 +10359,24 @@
         // TAB 5: ANAK & ADOPSI ANAK RESMI (USIA 21 - 40 TAHUN)
         // =====================================================
         if (tab === "anak") {
-            const canAdoptAge = player.age >= 21 && player.age <= 40;
+            const canAdoptAge = player.age >= 21 && player.age <= 70;
+            const adoptedCount = (player.children || []).filter(c => c.isAdopted).length;
+            const hasYayasan = !!player.hasYayasan;
             const adoptBanner = document.createElement("div");
             adoptBanner.className = "item-card";
             adoptBanner.style.borderColor = canAdoptAge && !hasCriminalRecord() ? "#0284c7" : "#d4be8d";
             adoptBanner.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div class="item-title">🏛️ Dinas Sosial +62 — Adopsi Anak Resmi</div>
-                    <span style="font-size:10px; background:${canAdoptAge && !hasCriminalRecord() ? '#0284c7' : '#6b7280'}; color:#fff; padding:2px 8px; border-radius:99px; font-weight:800;">Usia 21–40 Thn</span>
+                    <span style="font-size:10px; background:${canAdoptAge && !hasCriminalRecord() ? '#0284c7' : '#6b7280'}; color:#fff; padding:2px 8px; border-radius:99px; font-weight:800;">Usia 21–70 Thn</span>
                 </div>
                 <div class="item-desc">
-                    Terbuka bagi warga berusia <b>21 s/d 40 tahun</b> (baik lajang maupun menikah), bebas catatan penjara, dengan biaya administrasi panti & pengadilan <b>Rp 15 Jt</b>. Anak angkat sah mewarisi <b>100% harta</b> dan dihitung sebagai tanggungan PTKP pajak!
+                    Terbuka bagi warga berusia <b>21 s/d 70 tahun</b> (lajang/menikah), bebas catatan penjara, biaya administrasi <b>Rp 15 Jt</b>.<br>
+                    • Anak Adopsi Saat Ini: <b>${adoptedCount}${hasYayasan ? ' (🏛️ Status Yayasan Aktif — Tanpa Batas!)' : ' / 3 Maksimal Pribadi'}</b><br>
+                    ${!hasYayasan ? '• <i>Ingin adopsi lebih dari 3 anak? Wajib mendirikan <b>Yayasan</b> (Wawancara 10 soal Kemenkumham atau Bayar Calo Rp 500 Jt).</i>' : ''}
                 </div>
                 <button class="btn-action ${canAdoptAge && !hasCriminalRecord() ? 'btn-primary' : 'btn-dark'}" onclick="openAdoptChildModal()">
-                    ${hasCriminalRecord() ? '🔒 Ditolak Dinas Sosial (Catatan Penjara)' : (canAdoptAge ? '👶 Ajukan Adopsi Anak (Biaya Rp 15 Jt • 100% RNG)' : `🔒 Khusus Usia 21–40 Tahun (Usiamu: ${player.age} Thn)`)}
+                    ${hasCriminalRecord() ? '🔒 Ditolak Dinas Sosial (Catatan Penjara)' : (canAdoptAge ? (adoptedCount >= 3 && !hasYayasan ? '🏛️ Urus Legalitas Yayasan (Untuk Adopsi > 3 Anak)' : '👶 Ajukan Adopsi Anak (Biaya Rp 15 Jt )') : `🔒 Khusus Usia 21–70 Tahun (Usiamu: ${player.age} Thn)`)}
                 </button>
             `;
             bodyEl.appendChild(adoptBanner);
@@ -10370,9 +10426,9 @@
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:4px;">
                         <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('child', ${idx})">💸 Kasih Uang / Tabungan<br><span style="font-size:9px; font-weight:600;">Tentukan Nominal Bebas</span></button>
                         <button class="btn-action btn-gold" onclick="openGiftModal('child', ${idx})">🎁 Beri Hadiah Barang<br><span style="font-size:9px; font-weight:600;">Pilih Murah s/d Sultan</span></button>
-                        <button class="btn-action btn-primary" onclick="childUpgradeActivity(${idx}, 'edu')">📚 Kursus & Les Privat Anak<br><span style="font-size:9px; font-weight:600;">Rp 2 Jt • Hasil 100% RNG</span></button>
-                        <button class="btn-action btn-pink" onclick="childUpgradeActivity(${idx}, 'vacation')">🎡 Liburan & Quality Time<br><span style="font-size:9px; font-weight:600;">Rp 1,5 Jt • Hasil 100% RNG</span></button>
-                        <button class="btn-action btn-dark" style="grid-column: span 2;" onclick="childUpgradeActivity(${idx}, 'social')">👑 Kenalkan Circle Pejabat/Les Musik (Rp 4 Jt • Hasil 100% RNG)</button>
+                        <button class="btn-action btn-primary" onclick="childUpgradeActivity(${idx}, 'edu')">📚 Kursus & Les Privat Anak<br><span style="font-size:9px; font-weight:600;">Rp 2 Jt • Hasil acak</span></button>
+                        <button class="btn-action btn-pink" onclick="childUpgradeActivity(${idx}, 'vacation')">🎡 Liburan & Quality Time<br><span style="font-size:9px; font-weight:600;">Rp 1,5 Jt • Hasil acak</span></button>
+                        <button class="btn-action btn-dark" style="grid-column: span 2;" onclick="childUpgradeActivity(${idx}, 'social')">👑 Kenalkan Circle Pejabat/Les Musik (Rp 4 Jt • Hasil acak)</button>
                     </div>
                 `;
                 bodyEl.appendChild(card);
@@ -10476,7 +10532,7 @@
                         <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('expartner', ${idx})">💸 Kirim Uang Tunjangan<br><span style="font-size:9px; font-weight:600;">Tentukan Nominal Bebas</span></button>
                         <button class="btn-action btn-rose" style="grid-column:span 2;" onclick="attemptMurderNpc(\'expartner\', ${idx})">🔪 Percobaan Pembunuhan</button>
                         <button class="btn-action btn-gold" onclick="openGiftModal('expartner', ${idx})">🎁 Kirim Hadiah Damai<br><span style="font-size:9px; font-weight:600;">Redam Dendam Mantan</span></button>
-                        <button class="btn-action btn-pink" style="grid-column: span 2;" onclick="exPartnerAction(${idx}, 'clbk')">💘 Ajak Balikan / CLBK (Peluang 100% RNG)</button>
+                        <button class="btn-action btn-pink" style="grid-column: span 2;" onclick="exPartnerAction(${idx}, 'clbk')">💘 Ajak Balikan / CLBK (Peluang acak)</button>
                     </div>
                 `;
                 bodyEl.appendChild(card);
@@ -10870,7 +10926,7 @@
         }
     }
 
-    // Aktivitas Bersama Pasangan (100% RNG tanpa bocoran angka)
+    // Aktivitas Bersama Pasangan (acak tanpa bocoran angka)
     function partnerQualityActivity(type) {
         const p = player.partner;
         if (!p) return;
@@ -10960,12 +11016,12 @@
                 player.children.push(newBaby);
                 p.rel = clamp(p.rel + randInt(5, 12), 0, 100);
                 modifyStats({ happy: randInt(8, 16) });
-                addLog(`👶 **KELAHIRAN BUAH HATI:** Selamat! Dari hubunganmu dengan **${p.name}**, telah lahir seorang anak bernama **${newBaby.name}** (${newBaby.gender}) dengan status 100% RNG!`, "birth");
+                addLog(`👶 **KELAHIRAN BUAH HATI:** Selamat! Dari hubunganmu dengan **${p.name}**, telah lahir seorang anak bernama **${newBaby.name}** (${newBaby.gender}) dengan status acak!`, "birth");
                 showToast(`Selamat! Anak bernama ${newBaby.name} lahir!`);
                 renderKeluargaSheet("anak");
             } else {
                 addLog(`🌙 Kamu dan **${p.name}** sudah berusaha menjalankan program kehamilan, namun belum dikaruniai buah hati kali ini.`, "normal");
-                showToast("Belum berhasil hamil kali ini (100% RNG).");
+                showToast("Belum berhasil hamil kali ini .");
                 renderKeluargaSheet("pasangan");
             }
         }
@@ -11269,7 +11325,108 @@
         }
     }
 
-    // Aktivitas Upgrade Anak (100% RNG tanpa menampilkan angka)
+    // Aktivitas Upgrade Anak (acak tanpa menampilkan angka)
+
+    const KEMENKUMHAM_YAYASAN_QUESTIONS = [
+        { q: "Undang-Undang di Indonesia yang mengatur tentang pendirian dan tata kelola Yayasan adalah?", opts: ["UU No. 16 Tahun 2001 jo. UU No. 28 Tahun 2004", "UU Lalu Lintas No. 22 Tahun 2009", "UU Perseroan Terbatas No. 40 Tahun 2007", "UU Ketenagakerjaan No. 13 Tahun 2003"], ans: 0 },
+        { q: "Tiga organ utama yang wajib ada dalam struktur resmi sebuah Yayasan di Indonesia adalah?", opts: ["Direktur, Manajer, dan HRD", "Pembina, Pengurus, dan Pengawas", "Ketua RT, RW, dan Lurah", "Komisaris, Pemegang Saham, dan CEO"], ans: 1 },
+        { q: "Sifat utama badan hukum Yayasan menurut hukum Indonesia adalah?", opts: ["Mencari keuntungan (profit) untuk dibagikan ke pendiri", "Nirlaba (non-profit) di bidang sosial, keagamaan, dan kemanusiaan", "Perusahaan jual-beli saham terbuka", "Lembaga politik peserta pemilu"], ans: 1 },
+        { q: "Pengesahan akta pendirian Yayasan sebagai badan hukum resmi diterbitkan oleh?", opts: ["Kementerian Hukum dan HAM (Kemenkumham / Ditjen AHU)", "Kementerian Perhubungan", "Dinas Pertamanan Kota", "Bank Indonesia"], ans: 0 },
+        { q: "Akta pendirian Yayasan di hadapan pejabat umum wajib dibuat dalam bentuk?", opts: ["Surat tulisan tangan biasa", "Akta Notaris dalam bahasa Indonesia", "Kwitansi bermeterai", "Pesan singkat WhatsApp"], ans: 1 },
+        { q: "Apakah kekayaan Yayasan boleh dibagikan langsung sebagai dividen kepada Pembina, Pengurus, atau Pengawas?", opts: ["Boleh setiap akhir tahun", "Dilarang keras oleh UU Yayasan", "Boleh jika disetujui tetangga", "Boleh 50% dari total donasi"], ans: 1 },
+        { q: "Dalam pengelolaan panti asuhan oleh Yayasan, prinsip utama yang wajib diutamakan adalah?", opts: ["Kepentingan terbaik bagi anak (hak hidup, tumbuh kembang, pendidikan & perlindungan)", "Mempekerjakan anak untuk mencari sumbangan di jalan", "Membatasi akses pendidikan anak asuh", "Menghindari pencatatan identitas anak"], ans: 0 },
+        { q: "Apa kewajiban Yayasan terkait laporan keuangan tahunan apabila menerima bantuan negara/masyarakat dalam jumlah besar?", opts: ["Dirahasiakan selamanya", "Wajib disusun secara transparan dan diaudit akuntan publik sesuai ketentuan", "Cukup dicatat di buku warung", "Tidak perlu membuat pembukuan"], ans: 1 },
+        { q: "Jika terjadi kekayaan yang dipisahkan saat pendirian Yayasan oleh WNI, dari mana asal modal awal tersebut?", opts: ["Harus dari pinjaman rentenir", "Kekayaan pendiri yang dipisahkan menjadi kekayaan awal Yayasan", "Uang pajak warga sekitar", "Hasil sitaan pengadilan"], ans: 1 },
+        { q: "Apabila suatu Yayasan dibubarkan, ke mana sisa kekayaan hasil likuidasi Yayasan harus diserahkan?", opts: ["Dibagi rata ke kantong pribadi pengurus", "Diserahkan kepada Yayasan lain yang mempunyai maksud dan tujuan sama atau kepada Negara", "Dihanguskan begitu saja", "Diberikan kepada calo perizinan"], ans: 1 }
+    ];
+
+    let activeKemenkumhamExam = null;
+
+    function openYayasanUpgradeModal() {
+        if (!player) return;
+        showPopupEvent(
+            "🏛️",
+            "Batas Adopsi Pribadi (Maks. 3 Anak) Tercapai!",
+            `Kamu sudah mengadopsi <b>3 anak</b> secara pribadi. Untuk dapat mengadopsi lebih dari 3 anak, kamu <b>wajib mendirikan Yayasan resmi</b>!<br><br>
+            Pilih jalur pengurusan legalitas Yayasan di bawah ini:`,
+            [
+                {
+                    text: "📝 Jalur Resmi: Wawancara 10 Pertanyaan oleh Kemenkumham (Gratis • Lulus ≥ 7/10)",
+                    fn: () => startKemenkumhamInterview()
+                },
+                {
+                    text: "💸 Jalur Belakang: Bayar Calo Legalitas Yayasan (Rp 500 Jt • Langsung Sah!)",
+                    fn: () => {
+                        if (player.money < 500) {
+                            showToast("Saldo kurang! Calo legalitas Yayasan meminta Rp 500 Jt.");
+                            renderKeluargaSheet("anak");
+                            return;
+                        }
+                        player.money = roundMoney(player.money - 500);
+                        player.hasYayasan = true;
+                        playGameSound("coin");
+                        modifyStats({ social: 8, happy: 5 });
+                        addLog(`🏛️ **YAYASAN SAH (JALUR CALO):** Kamu membayar calo **-Rp 500 Jt** dan SK Badan Hukum Yayasan langsung terbit tanpa wawancara! Kini kamu bisa mengadopsi anak tanpa batas.`, "anomaly");
+                        showToast("🏛️ Legalitas Yayasan terbit! Bebas adopsi > 3 anak.");
+                        renderKeluargaSheet("anak");
+                        updateUI();
+                    }
+                },
+                {
+                    text: "✕ Kembali ke Menu Anak",
+                    fn: () => renderKeluargaSheet("anak")
+                }
+            ],
+            "🏛️ LEGALITAS YAYASAN KEMENKUMHAM"
+        );
+    }
+
+    function startKemenkumhamInterview() {
+        const picked = [...KEMENKUMHAM_YAYASAN_QUESTIONS].sort(() => Math.random() - 0.5);
+        activeKemenkumhamExam = { questions: picked, index: 0, score: 0 };
+        renderKemenkumhamQuestion();
+    }
+
+    function renderKemenkumhamQuestion() {
+        if (!activeKemenkumhamExam) return;
+        const qObj = activeKemenkumhamExam.questions[activeKemenkumhamExam.index];
+        const letters = ["A", "B", "C", "D"];
+        const choices = qObj.opts.map((txt, idx) => ({
+            text: `<b>${letters[idx]}.</b> ${txt}`,
+            fn: () => {
+                if (idx === qObj.ans) activeKemenkumhamExam.score += 1;
+                activeKemenkumhamExam.index += 1;
+                if (activeKemenkumhamExam.index >= activeKemenkumhamExam.questions.length) {
+                    const finalScore = activeKemenkumhamExam.score;
+                    activeKemenkumhamExam = null;
+                    if (finalScore >= 7) {
+                        player.hasYayasan = true;
+                        playGameSound("coin");
+                        modifyStats({ social: 10, happy: 8 });
+                        addLog(`🏛️ **LULUS WAWANCARA KEMENKUMHAM (${finalScore}/10):** Selamat! SK Pendirian **Yayasan Sosial** milikmu resmi disahkan! Kini kamu diperbolehkan mengadopsi lebih dari 3 anak.`, "career");
+                        showToast(`🎉 Lulus Kemenkumham (${finalScore}/10)! Yayasan Sah!`);
+                        renderKeluargaSheet("anak");
+                    } else {
+                        playGameSound("danger");
+                        modifyStats({ happy: -4 });
+                        addLog(`❌ **GAGAL WAWANCARA KEMENKUMHAM (${finalScore}/10):** Skor wawancaramu belum memenuhi syarat minimal **7/10**. Kamu bisa mencoba wawancara lagi atau menggunakan jalur calo Rp 500 Jt.`, "danger");
+                        showToast(`❌ Gagal Wawancara (${finalScore}/10). Butuh ≥ 7/10!`);
+                        renderKeluargaSheet("anak");
+                    }
+                    updateUI();
+                } else {
+                    renderKemenkumhamQuestion();
+                }
+            }
+        }));
+        showPopupEvent(
+            "⚖️",
+            `Wawancara Kemenkumham — Soal ${activeKemenkumhamExam.index + 1}/10`,
+            `<div style="font-size:12.5px; font-weight:800; color:#3d2b1f; margin-bottom:4px;">${qObj.q}</div><div style="font-size:10px; color:#7c6651;">Syarat Lulus SK Yayasan: Minimal <b>7 dari 10</b> jawaban benar.</div>`,
+            choices,
+            "🏛️ DITJEN AHU KEMENKUMHAM RI"
+        );
+    }
 
     function openAdoptChildModal() {
         if (!player) return;
@@ -11277,8 +11434,13 @@
             showToast("Permohonan adopsi ditolak otomatis karena catatan pernah dipenjara!");
             return;
         }
-        if (player.age < 21 || player.age > 40) {
-            showToast(`Adopsi anak hanya diperbolehkan pada rentang usia 21 s/d 40 tahun (Usiamu: ${player.age} Thn)!`);
+        if (player.age < 21 || player.age > 70) {
+            showToast(`Adopsi anak hanya diperbolehkan pada rentang usia 21 s/d 70 tahun (Usiamu: ${player.age} Thn)!`);
+            return;
+        }
+        const adoptedCount = (player.children || []).filter(c => c.isAdopted).length;
+        if (adoptedCount >= 3 && !player.hasYayasan) {
+            openYayasanUpgradeModal();
             return;
         }
         if (player.money < 15) {
@@ -11300,8 +11462,9 @@
             <div style="background:#f8f1df; border:1.5px solid #decb9f; border-radius:10px; padding:8px; margin-top:6px; font-size:11px;">
                 • Nama Anak Angkat: <b>${candidateName}</b> (${isMale ? '♂️ Laki-laki' : '♀️ Perempuan'})<br>
                 • Usia Anak Saat Ini: <b>${childAge} Tahun</b><br>
+                • Status Pengasuh: <b>${player.hasYayasan ? '🏛️ Yayasan Resmi (Tanpa Batas)' : `Pribadi (${adoptedCount + 1}/3)`}</b><br>
                 • Biaya Administrasi & Notaris: <b style="color:#dc2626;">Rp 15 Jt</b><br>
-                • Status Persetujuan Dinas Sosial: <b>100% RNG</b>
+                • Status Persetujuan Dinas Sosial: <b>acak</b>
             </div>`,
             [
                 {
@@ -11318,7 +11481,12 @@
     }
 
     function executeAdoptChild(childName, isMale, childAge) {
-        if (!player || player.age < 21 || player.age > 40 || hasCriminalRecord()) return;
+        if (!player || player.age < 21 || player.age > 70 || hasCriminalRecord()) return;
+        const adoptedCount = (player.children || []).filter(c => c.isAdopted).length;
+        if (adoptedCount >= 3 && !player.hasYayasan) {
+            openYayasanUpgradeModal();
+            return;
+        }
         if (player.money < 15) {
             showToast("Saldomu tidak mencukupi Rp 15 Jt!");
             return;
@@ -11350,7 +11518,7 @@
             player.children.push(adoptedChild);
             playGameSound("love");
             modifyStats({ happy: randInt(6, 12), social: randInt(3, 7) });
-            addLog(`👶 **SAH ADOPSI ANAK:** Permohonan adopsimu disetujui pengadilan (-Rp 15 Jt)! Kini **${childName}** (${adoptedChild.gender}, usia ${childAge} tahun) resmi menjadi anak angkat sahmu dan berhak menjadi ahli waris.`, "birth");
+            addLog(`👶 **SAH ADOPSI ANAK:** Permohonan adopsimu disetujui pengadilan (-Rp 15 Jt)! Kini **${childName}** (${adoptedChild.gender}, usia ${childAge} tahun) resmi menjadi anak angkat sahmu${player.hasYayasan ? ' di bawah naungan Yayasan' : ''}.`, "birth");
             showToast(`Selamat! ${childName} resmi menjadi anakmu!`);
             renderKeluargaSheet("anak");
         } else {
@@ -11488,7 +11656,7 @@
             {
                 icon: "🎰",
                 title: "Main Situs 'Kakek Merah' / Judi Online (Judol)",
-                desc: "Risiko Tinggi 100% RNG • Selain menguras saldo, jika kepergok HRD/Sekolah atau terjaring razia siber polisi, kamu otomatis DIPECAT dari pekerjaan atau DI-DO dari sekolah/kampus!",
+                desc: "Risiko Tinggi acak • Selain menguras saldo, jika kepergok HRD/Sekolah atau terjaring razia siber polisi, kamu otomatis DIPECAT dari pekerjaan atau DI-DO dari sekolah/kampus!",
                 btnText: "Pasang Taruhan Judol (Rp 5 Jt)",
                 fn: () => {
                     if (player.money < 5) { showToast("Saldomu kurang dari Rp 5 Jt!"); return; }
@@ -11773,7 +11941,7 @@
     }
 
     // =========================================================================
-    // 14. SISTEM KARMA RELASI & KEJADIAN ACAK KETAT SESUAI USIA (100% RNG)
+    // 14. SISTEM KARMA RELASI & KEJADIAN ACAK KETAT SESUAI USIA 
     // =========================================================================
     function showPopupEvent(emoji, title, desc, choices, badgeText = "⚡ KEJADIAN +62") {
         if (player && player.alive && !player.migrated) {
@@ -12005,7 +12173,7 @@
                         }
                     },
                     {
-                        text: "🙏 Pasrah pada Takdir & Pertolongan Warga Sekitar (100% RNG)",
+                        text: "🙏 Pasrah pada Takdir & Pertolongan Warga Sekitar ",
                         fn: () => {
                             if (Math.random() < 0.42) {
                                 player.alive = false;
