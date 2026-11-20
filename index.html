@@ -1648,8 +1648,17 @@
                 logEl.scrollTop = logEl.scrollHeight;
             }
             enforceRomanceGenderRule();
-            if (player && Array.isArray(player.resilientInformalJobs) && player.resilientInformalJobs.length > 1) {
-                player.resilientInformalJobs = [player.resilientInformalJobs[0]];
+            if (player && Array.isArray(player.resilientInformalJobs)) {
+                if (player.resilientInformalJobs.length > 1) {
+                    player.resilientInformalJobs = [player.resilientInformalJobs[0]];
+                }
+                if (player.resilientInformalJobs.length === 1) {
+                    const baseIj = INFORMAL_JOBS.find(x => x.id === player.resilientInformalJobs[0].id);
+                    player.resilientInformalJobs[0].hours = 15;
+                    if (baseIj) {
+                        player.resilientInformalJobs[0].salary = roundMoney(baseIj.salary * (15 / 40));
+                    }
+                }
             }
 
             document.getElementById("splashModal").classList.add("hidden");
@@ -1674,15 +1683,19 @@
         }
     }
 
-    function clearLocalSaveData() {
+    function clearLocalSaveData(wipeAchievements = false) {
         safeStorageRemove(SAVE_STORAGE_KEY);
+        if (wipeAchievements) {
+            safeStorageRemove(HOF_ACHIEVEMENTS_KEY);
+            safeStorageRemove(HOF_STORAGE_KEY);
+        }
         try {
             if (window.sessionStorage) window.sessionStorage.clear();
         } catch (e) {}
     }
 
-    function resetSavedDataAndOpenBirth() {
-        clearLocalSaveData();
+    function resetSavedDataAndOpenBirth(wipeAchievements = false) {
+        clearLocalSaveData(wipeAchievements);
         player = null;
         const logEl = document.getElementById("lifeLog");
         if (logEl) logEl.innerHTML = "";
@@ -1691,19 +1704,26 @@
 
     function confirmResetGameData() {
         if (!player) {
-            resetSavedDataAndOpenBirth();
+            resetSavedDataAndOpenBirth(true);
             return;
         }
         showPopupEvent(
             "🗑️",
-            "Konfirmasi Reset Data Permainan",
-            `Apakah kamu yakin ingin menghapus data tersimpan untuk <b>${player.name}</b> (Usia ${player.age} Thn • Kekayaan <b>${formatShortJuta(player.money)}</b>) dari browser dan membuat kehidupan baru dari awal?`,
+            "Konfirmasi Reset Total Data & Achievement",
+            `Apakah kamu yakin ingin menghapus data tersimpan untuk <b>${player.name}</b> (Usia ${player.age} Thn • Kekayaan <b>${formatShortJuta(player.money)}</b>) <b>beserta seluruh progres 20 Achievement Hall of Fame</b> dari browser?`,
             [
                 {
-                    text: "🗑️ Ya, Hapus Save & Mulai Karakter Baru",
+                    text: "🗑️ Ya, Reset Total Save & Achievement",
                     fn: () => {
-                        resetSavedDataAndOpenBirth();
-                        showToast("🗑️ Data permainan berhasil di-reset!");
+                        resetSavedDataAndOpenBirth(true);
+                        showToast("🗑️ Save & seluruh Achievement berhasil di-reset!");
+                    }
+                },
+                {
+                    text: "🔄 Mulai Hidup Baru Saja (Pertahankan Achievement)",
+                    fn: () => {
+                        resetSavedDataAndOpenBirth(false);
+                        showToast("🔄 Memulai hidup baru! Achievement tetap tersimpan.");
                     }
                 },
                 {
@@ -1713,7 +1733,7 @@
                     }
                 }
             ],
-            "💾 PENGATURAN AUTO-SAVE"
+            "💾 PENGATURAN SAVE & ACHIEVEMENT"
         );
     }
 
@@ -3322,9 +3342,10 @@
             return;
         }
 
-        const sideHrs = (player.sideJobs || []).reduce((s, sj) => s + (sj.hours || 0), 0);
-        if (40 + sideHrs > 40) {
-            showToast(`Pekerjaan ini Full-Time 40 Jam/minggu! Hentikan kerja sampinganmu (${sideHrs} jam) terlebih dahulu.`);
+        const extraHrs = (player.sideJobs || []).reduce((s, sj) => s + (sj.hours || 0), 0)
+            + (player.resilientInformalJobs || []).reduce((s, ij) => s + (ij.hours || 15), 0);
+        if (40 + extraHrs > 60) {
+            showToast(`Total jam kerja formal + informal melebihi 60 jam/minggu (${40 + extraHrs}/60 jam)! Kurangi sampingan/informal dulu.`);
             return;
         }
 
@@ -3866,6 +3887,17 @@
         }
         const ij = INFORMAL_JOBS[idx];
         if (!ij) return;
+        if (!Array.isArray(player.resilientInformalJobs)) player.resilientInformalJobs = [];
+        if (player.resilientInformalJobs.length > 0) {
+            const curInf = player.resilientInformalJobs[0];
+            showToast(`Kamu sudah menjalankan ${curInf.title} (15 jam/mgg)! Berhenti dulu sebelum ambil yang lain.`);
+            return;
+        }
+        const currentUsed = getUsedWorkHours();
+        if (currentUsed + 15 > 60) {
+            showToast(`Total jam kerja formal + informal maksimal 60 jam/minggu (${currentUsed + 15}/60 jam)!`);
+            return;
+        }
         if (ij.reqCapital > 0 && player.money < ij.reqCapital) {
             showToast(`Modal kurang! Butuh ${formatShortJuta(ij.reqCapital)}.`);
             return;
@@ -3873,17 +3905,14 @@
         if (ij.reqCapital > 0) {
             player.money = roundMoney(player.money - ij.reqCapital);
         }
-        if (!Array.isArray(player.resilientInformalJobs)) player.resilientInformalJobs = [];
-        if (player.resilientInformalJobs.length > 0) {
-            const curInf = player.resilientInformalJobs[0];
-            showToast(`Kamu hanya bisa menjalankan 1 pekerjaan informal sekaligus! Berhenti dulu dari ${curInf.title}.`);
-            return;
-        }
-        const resilientSalary = roundMoney(ij.salary * 0.85);
-        player.resilientInformalJobs.push({ ...ij, salary: resilientSalary });
-        addLog(`🛠️ **INFORMAL TAHAN BANTING:** Kamu memulai **${ij.icon} ${ij.title}** (+Rp ${resilientSalary} Jt/thn). Hanya 1 usaha informal aktif pada satu waktu.`, "career");
-        showToast(`Mulai ${ij.title}!`);
+        const resilientSalary = roundMoney(ij.salary * (15 / 40));
+        player.resilientInformalJobs.push({ ...ij, hours: 15, salary: resilientSalary });
+        const totalHrs = getUsedWorkHours();
+        const warnText = totalHrs > 40 ? ` ⚠️ Total kerja **${totalHrs}/60 jam/mgg** (>40 jam akan menguras kesehatan drastis tiap tahun!)` : "";
+        addLog(`🛠️ **INFORMAL TAHAN BANTING (15 JAM/MGG):** Kamu memulai **${ij.icon} ${ij.title}** (+Rp ${resilientSalary} Jt/thn • Total kerja: **${totalHrs}/60 jam/mgg**).${warnText}`, "career");
+        showToast(`Mulai ${ij.title} (15 jam/mgg)!`);
         renderKarirSheet("informal_resilient");
+        updateUI();
     }
 
     function quitResilientInformalJob(id) {
@@ -4463,7 +4492,8 @@
         if (!player) return 0;
         const mainHrs = player.job ? (player.jobHours || 40) : 0;
         const sideHrs = (player.sideJobs || []).reduce((s, sj) => s + (sj.hours || 0), 0);
-        return mainHrs + sideHrs;
+        const infHrs = (player.resilientInformalJobs || []).reduce((s, ij) => s + (ij.hours || 15), 0);
+        return mainHrs + sideHrs + infHrs;
     }
 
     function getSideJobsAnnualIncome() {
@@ -5209,6 +5239,310 @@
     // 1B. DATABASE PET (HEWAN PELIHARAAN), BPJS & RS LUAR NEGERI, PARTAI & HALL OF FAME
     // =========================================================================
     const HOF_STORAGE_KEY = "warga62_hall_of_fame_v2";
+    const HOF_ACHIEVEMENTS_KEY = "warga62_hof_achievements_v1";
+
+    const HOF_ACHIEVEMENTS = [
+        {
+            id: "eksil_sultan",
+            icon: "✈️",
+            title: "Eksil Sultan #KaburAjaDulu",
+            desc: "Berhasil pindah kewarganegaraan ke luar negeri (Kekayaan > Rp 99.999 Jt).",
+            goalText: "Pindah Warga Negara (1x)",
+            evalProgress: (p, nw) => ({ cur: p.migrated ? 1 : 0, max: 1, done: !!p.migrated })
+        },
+        {
+            id: "presiden_ri",
+            icon: "👑",
+            title: "Presiden Republik +62",
+            desc: "Menjabat sebagai Presiden Republik +62 lewat jalur politik.",
+            goalText: "Jabatan Presiden (1x)",
+            evalProgress: (p, nw) => {
+                const ok = !!(p.govHistory && p.govHistory.presiden > 0);
+                return { cur: ok ? 1 : 0, max: 1, done: ok };
+            }
+        },
+        {
+            id: "konglomerat_naga",
+            icon: "💎",
+            title: "Konglomerat Naga +62",
+            desc: "Mengumpulkan total kekayaan bersih (saldo + aset + investasi) minimal Rp 10.000 Jt.",
+            goalText: "Kekayaan Rp 10.000 Jt",
+            evalProgress: (p, nw) => ({ cur: Math.max(0, Math.min(10000, Math.round(nw))), max: 10000, done: nw >= 10000 })
+        },
+        {
+            id: "sultan_saham_kripto",
+            icon: "📈",
+            title: "Sultan Saham & Paus Kripto",
+            desc: "Memiliki portofolio investasi pasar modal/kripto senilai minimal Rp 2.500 Jt.",
+            goalText: "Portofolio Rp 2.500 Jt",
+            evalProgress: (p, nw) => {
+                let portVal = 0;
+                if (p.portfolio && p.marketPrices) {
+                    for (const [k, obj] of Object.entries(p.portfolio)) {
+                        if (obj && obj.units > 0) portVal += obj.units * (p.marketPrices[k] || 0);
+                    }
+                }
+                portVal = Math.round(portVal);
+                return { cur: Math.min(2500, portVal), max: 2500, done: portVal >= 2500 };
+            }
+        },
+        {
+            id: "juragan_properti",
+            icon: "🏘️",
+            title: "Juragan Kontrakan & Tuan Tanah",
+            desc: "Memiliki minimal 5 aset properti/bisnis/kendaraan sekaligus.",
+            goalText: "5 Aset Dimiliki",
+            evalProgress: (p, nw) => {
+                const cnt = (p.assets || []).length;
+                return { cur: Math.min(5, cnt), max: 5, done: cnt >= 5 };
+            }
+        },
+        {
+            id: "profesor_doktor",
+            icon: "🎓",
+            title: "Profesor Doktor Paripurna +62",
+            desc: "Lulus pendidikan tertinggi hingga jenjang Doktor (S3) dengan Pendidikan ≥ 90%.",
+            goalText: "Ijazah S3 & Edu ≥90%",
+            evalProgress: (p, nw) => {
+                let step = 0;
+                if (p.hasDegreeS1 || p.hasDegree) step = 1;
+                if (p.hasDegreeS2) step = 2;
+                if (p.hasDegreeS3) step = 3;
+                if (p.hasDegreeS3 && (p.stats?.edu || 0) >= 90) step = 4;
+                return { cur: step, max: 4, done: step >= 4 };
+            }
+        },
+        {
+            id: "megabintang_nusantara",
+            icon: "🌟",
+            title: "Megabintang Legendaris Nusantara",
+            desc: "Menekuni Karir Bintang (Atlet/Model/Penyanyi/Artis) dengan Sosial ≥ 90%.",
+            goalText: "Karir Bintang & Sosial 90%",
+            evalProgress: (p, nw) => {
+                const isStar = !!(p.job && p.job.isSpecialCareer);
+                const soc = Math.min(90, p.stats?.social || 0);
+                const cur = (isStar ? 50 : 0) + Math.round((soc / 90) * 50);
+                return { cur: Math.min(100, cur), max: 100, done: isStar && (p.stats?.social || 0) >= 90 };
+            }
+        },
+        {
+            id: "dinasti_politik",
+            icon: "🏛️",
+            title: "Dinasti Politik & Penguasa Daerah",
+            desc: "Pernah menjabat minimal 2 posisi pemerintahan/politik berbeda tanpa catatan penjara.",
+            goalText: "2 Jabatan Politik Bersih",
+            evalProgress: (p, nw) => {
+                const roles = p.govHistory ? Object.keys(p.govHistory).filter(k => p.govHistory[k] > 0).length : 0;
+                const clean = !(p.jailRecords && p.jailRecords.length > 0) && !p.inJail;
+                return { cur: clean ? Math.min(2, roles) : 0, max: 2, done: clean && roles >= 2 };
+            }
+        },
+        {
+            id: "pejuang_sandwich",
+            icon: "🥪",
+            title: "Pejuang Sandwich Pemutus Rantai",
+            desc: "Lahir dari keluarga Generasi Sandwich dan mencapai kekayaan minimal Rp 500 Jt.",
+            goalText: "Gen Sandwich → Rp 500 Jt",
+            evalProgress: (p, nw) => {
+                const isSw = !!(p.family && p.family.id === "sandwich");
+                if (!isSw) return { cur: 0, max: 500, done: false };
+                return { cur: Math.max(0, Math.min(500, Math.round(nw))), max: 500, done: nw >= 500 };
+            }
+        },
+        {
+            id: "selebgram_sultan",
+            icon: "📱",
+            title: "Selebgram & Sultan Endorse +62",
+            desc: "Menekuni profesi Media Sosial dengan Sosial ≥ 90% dan kekayaan ≥ Rp 1.000 Jt.",
+            goalText: "Medsos • Sosial 90% • Rp 1.000 Jt",
+            evalProgress: (p, nw) => {
+                const hasSm = (p.socialMediaJobs || []).length > 0;
+                const socOk = (p.stats?.social || 0) >= 90;
+                const wOk = nw >= 1000;
+                const pts = (hasSm ? 34 : 0) + (socOk ? 33 : Math.round(Math.min(90, p.stats?.social || 0) / 90 * 33)) + (wOk ? 33 : Math.round(Math.max(0, Math.min(1000, nw)) / 1000 * 33));
+                return { cur: Math.min(100, pts), max: 100, done: hasSm && socOk && wOk };
+            }
+        },
+        {
+            id: "raja_jalanan",
+            icon: "🛣️",
+            title: "Penguasa Aspal & Raja Jalanan",
+            desc: "Lulus ujian lengkap semua golongan SIM: SIM A, SIM C, SIM B1, dan SIM B2.",
+            goalText: "4 Golongan SIM (A, C, B1, B2)",
+            evalProgress: (p, nw) => {
+                const s = p.sim || {};
+                const cnt = (s.A ? 1 : 0) + (s.C ? 1 : 0) + ((s.B1_P || s.B1_U) ? 1 : 0) + ((s.B2_P || s.B2_U) ? 1 : 0);
+                return { cur: cnt, max: 4, done: cnt >= 4 };
+            }
+        },
+        {
+            id: "keluarga_panutan",
+            icon: "👨‍👩‍👧‍👦",
+            title: "Kepala Keluarga Panutan Sejati",
+            desc: "Memiliki pasangan sah dengan relasi ≥ 85% serta minimal 3 orang anak.",
+            goalText: "Pasangan ≥85% & 3 Anak",
+            evalProgress: (p, nw) => {
+                const hasSpouse = !!(p.partner && p.partner.alive && p.partner.isMarried);
+                const kids = (p.children || []).length;
+                const relOk = hasSpouse && (p.partner.rel || 0) >= 85;
+                const pts = (hasSpouse ? 25 : 0) + (relOk ? 25 : 0) + Math.min(3, kids) * 17;
+                return { cur: Math.min(100, pts), max: 100, done: hasSpouse && relOk && kids >= 3 };
+            }
+        },
+        {
+            id: "buaya_darat",
+            icon: "💔",
+            title: "Playboy / Playgirl Legendaris +62",
+            desc: "Mengoleksi riwayat minimal 4 mantan pasangan/perceraian sepanjang hidup.",
+            goalText: "4 Mantan Pasangan",
+            evalProgress: (p, nw) => {
+                const exCnt = (p.exPartners || []).length;
+                return { cur: Math.min(4, exCnt), max: 4, done: exCnt >= 4 };
+            }
+        },
+        {
+            id: "pejuang_hustle",
+            icon: "🥵",
+            title: "Pejuang Hustle Culture Tanpa Henti",
+            desc: "Menjalani kerja ekstrem (> 40 jam/minggu) selama kumulatif 10 tahun.",
+            goalText: "10 Tahun Overwork (>40j)",
+            evalProgress: (p, nw) => {
+                const yrs = p.overworkYears || 0;
+                return { cur: Math.min(10, yrs), max: 10, done: yrs >= 10 };
+            }
+        },
+        {
+            id: "pensiunan_tenang",
+            icon: "🕊️",
+            title: "Pensiunan Sultan Hidup Tenang",
+            desc: "Mencapai usia 80 tahun dengan Kesehatan ≥ 80%, Kebahagiaan ≥ 80%, & bebas penjara.",
+            goalText: "Usia 80 • Sehat & Bahagia ≥80%",
+            evalProgress: (p, nw) => {
+                const clean = !(p.jailRecords && p.jailRecords.length > 0) && !p.inJail;
+                const agePts = Math.min(50, Math.round((p.age / 80) * 50));
+                const statPts = (((p.stats?.health || 0) >= 80 ? 25 : 0) + ((p.stats?.happy || 0) >= 80 ? 25 : 0));
+                const done = clean && p.age >= 80 && (p.stats?.health || 0) >= 80 && (p.stats?.happy || 0) >= 80;
+                return { cur: clean ? Math.min(100, agePts + statPts) : 0, max: 100, done };
+            }
+        },
+        {
+            id: "koruptor_kakap",
+            icon: "💼",
+            title: "Mantan Pejabat Tersandung Kasus",
+            desc: "Pernah menduduki jabatan politik lalu memiliki catatan hukuman penjara.",
+            goalText: "Pejabat + Catatan Penjara",
+            evalProgress: (p, nw) => {
+                const hadGov = !!(p.govHistory && Object.keys(p.govHistory).length > 0);
+                const hadJail = !!((p.jailRecords && p.jailRecords.length > 0) || p.inJail);
+                const cur = (hadGov ? 1 : 0) + (hadJail ? 1 : 0);
+                return { cur, max: 2, done: hadGov && hadJail };
+            }
+        },
+        {
+            id: "skck_merah",
+            icon: "⛓️",
+            title: "Warga Bertato SKCK Merah",
+            desc: "Pernah merasakan dinginnya jeruji besi Lapas +62.",
+            goalText: "Masuk Lapas +62 (1x)",
+            evalProgress: (p, nw) => {
+                const hadJail = !!((p.jailRecords && p.jailRecords.length > 0) || p.inJail);
+                return { cur: hadJail ? 1 : 0, max: 1, done: hadJail };
+            }
+        },
+        {
+            id: "korban_pinjol",
+            icon: "💸",
+            title: "Terlilit Pinjol & Galbay Nasional",
+            desc: "Memiliki saldo minus (< Rp 0 Jt) atau terjerat bunga pinjol.",
+            goalText: "Saldo Minus (< Rp 0 Jt)",
+            evalProgress: (p, nw) => {
+                const inDebt = p.money < 0 || nw < 0;
+                return { cur: inDebt ? 1 : 0, max: 1, done: inDebt };
+            }
+        },
+        {
+            id: "gugur_muda",
+            icon: "🕯️",
+            title: "Gugur Muda di Tengah Perjuangan",
+            desc: "Tutup usia sebelum mencapai umur 30 tahun.",
+            goalText: "Wafat Usia < 30 Thn",
+            evalProgress: (p, nw) => {
+                const done = !p.alive && !p.migrated && p.age < 30;
+                return { cur: done ? 1 : 0, max: 1, done };
+            }
+        },
+        {
+            id: "warga_teladan",
+            icon: "🇮🇩",
+            title: "Warga +62 Teladan Sejati",
+            desc: "Menuntaskan satu siklus hidup (tutup usia) dengan bersih tanpa catatan kriminal & saldo positif.",
+            goalText: "Tamat Hidup Bersih & Positif",
+            evalProgress: (p, nw) => {
+                const clean = !(p.jailRecords && p.jailRecords.length > 0) && !p.inJail && nw >= 0;
+                const done = !p.alive && clean;
+                return { cur: done ? 1 : (clean ? 0 : 0), max: 1, done };
+            }
+        }
+    ];
+
+    function loadUnlockedHofAchievements() {
+        try {
+            const raw = safeStorageGet(HOF_ACHIEVEMENTS_KEY);
+            if (!raw) return {};
+            const parsed = JSON.parse(raw);
+            return (parsed && typeof parsed === "object" && !Array.isArray(parsed)) ? parsed : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function saveUnlockedHofAchievements(mapObj) {
+        try {
+            safeStorageSet(HOF_ACHIEVEMENTS_KEY, JSON.stringify(mapObj));
+        } catch (e) {}
+    }
+
+    function getPlayerTotalNetWorth(p) {
+        if (!p) return 0;
+        const assetVal = (p.assets || []).reduce((s, a) => s + (a.price || 0), 0);
+        let portVal = 0;
+        if (p.portfolio && p.marketPrices) {
+            for (const [k, obj] of Object.entries(p.portfolio)) {
+                if (obj && obj.units > 0) portVal += obj.units * (p.marketPrices[k] || 0);
+            }
+        }
+        return roundMoney((p.money || 0) + assetVal + portVal);
+    }
+
+    function syncHofAchievements(silent = false) {
+        if (!player) return loadUnlockedHofAchievements();
+        const unlocked = loadUnlockedHofAchievements();
+        const nw = getPlayerTotalNetWorth(player);
+        let newlyUnlocked = [];
+        HOF_ACHIEVEMENTS.forEach(ach => {
+            if (unlocked[ach.id]) return;
+            const prog = ach.evalProgress(player, nw);
+            if (prog && prog.done) {
+                unlocked[ach.id] = {
+                    unlockedAt: Date.now(),
+                    byName: player.name,
+                    generation: player.generation || 1,
+                    age: player.age
+                };
+                newlyUnlocked.push(ach);
+            }
+        });
+        if (newlyUnlocked.length > 0) {
+            saveUnlockedHofAchievements(unlocked);
+            if (!silent) {
+                newlyUnlocked.forEach(ach => {
+                    addLog(`🏅 **ACHIEVEMENT HALL OF FAME TERBUKA:** **${ach.icon} ${ach.title}** — ${ach.desc}`, "birth");
+                    showToast(`🏅 Gelar Terbuka: ${ach.title}!`);
+                });
+            }
+        }
+        return unlocked;
+    }
 
     const PETS_CATALOG = [
         {
@@ -6406,7 +6740,7 @@
         if (!player) return "";
         if (player.inJail) return `Narapidana (${player.jailYears} thn lagi)`;
         const sideCount = (player.sideJobs || []).length;
-        const sideSuffix = sideCount > 0 ? ` + ${sideCount} Sampingan (${getUsedWorkHours()}/40 Jam)` : "";
+        const sideSuffix = sideCount > 0 ? ` + ${sideCount} Sampingan (${getUsedWorkHours()}/60 Jam)` : "";
         if (player.age <= 5) return "Balita Warga +62";
         if (player.age <= 11) return player.currentSchool ? `Murid ${player.currentSchool.name}` : "Murid SD";
         if (player.age <= 14) return (player.currentSchool ? `Pelajar ${player.currentSchool.name}` : "Pelajar SMP") + sideSuffix;
@@ -6417,7 +6751,7 @@
         if (player.retired) return `Pensiunan (+Rp ${player.pension} Jt/thn)`;
         if (player.inCollege && player.university) return `Mhs ${player.university.name}` + sideSuffix;
         if (player.job) return `${player.job.icon} ${player.job.title} (${player.jobHours || 40}j)` + (sideCount > 0 ? ` +${sideCount} Sampingan` : "");
-        if (sideCount > 0) return `Pekerja Sampingan (${getUsedWorkHours()}/40 Jam/mgg)`;
+        if (sideCount > 0) return `Pekerja Sampingan (${getUsedWorkHours()}/60 Jam/mgg)`;
         return "Pengangguran / Beban Keluarga";
     }
 
@@ -6736,6 +7070,7 @@
     // =========================================================================
     function updateUI() {
         if (!player) return;
+        syncHofAchievements(false);
 
         const navNormal = document.getElementById("bottomNavNormal");
         const navJail = document.getElementById("bottomNavJail");
@@ -7596,7 +7931,7 @@
             }
         } else if (player.sideJobs && player.sideJobs.length > 0) {
             const sideInc = getSideJobsAnnualIncome();
-            addLog(`⏱️ **KERJA SAMPINGAN (${getUsedWorkHours()}/40 Jam/Mgg):** Kamu mengumpulkan **+Rp ${sideInc} Jt/thn** dari ${player.sideJobs.length} kerja sampingan per jam. Cashflow bersih: **${net >= 0 ? "+" : ""}Rp ${net} Jt**.`, "money");
+            addLog(`⏱️ **KERJA SAMPINGAN (${getUsedWorkHours()}/60 Jam/Mgg):** Kamu mengumpulkan **+Rp ${sideInc} Jt/thn** dari ${player.sideJobs.length} kerja sampingan per jam. Cashflow bersih: **${net >= 0 ? "+" : ""}Rp ${net} Jt**.`, "money");
         } else if (player.retired) {
             addLog(`🧓 Menikmati masa pensiun di ${player.city.name}. Arus kas bersih: **${net >= 0 ? "+" : ""}Rp ${net} Jt**.`, "money");
         } else if (player.age >= 19 && !player.inCollege) {
@@ -7609,6 +7944,16 @@
             player.money = roundMoney(player.money - bungaPinjol);
             modifyStats({ happy: -8, health: -4, social: -5 });
             addLog(`🚨 **TEROR DEBT COLLECTOR PINJOL:** Saldomu minus (**${formatShortJuta(player.money)}**), terkena bunga pinjol **-Rp ${bungaPinjol} Jt**!`, "danger");
+        }
+
+        const totalWeeklyHrs = getUsedWorkHours();
+        if (totalWeeklyHrs > 40) {
+            player.overworkYears = (player.overworkYears || 0) + 1;
+            const extraHrs = totalWeeklyHrs - 40;
+            const healthPenalty = Math.min(30, Math.round(extraHrs * 0.9) + randInt(5, 10));
+            const happyPenalty = randInt(4, 9);
+            modifyStats({ health: -healthPenalty, happy: -happyPenalty });
+            addLog(`🥵 **KELELAHAN KERJA EKSTREM (${totalWeeklyHrs}/60 JAM/MGG):** Bekerja melebihi 40 jam/minggu membuat tubuhmu kelelahan berat (**Kesehatan -${healthPenalty}%**, **Kebahagiaan -${happyPenalty}%**)!`, "danger");
         }
 
         if (player.age >= 60) {
@@ -8075,9 +8420,10 @@
             <button class="bl-row" onclick="openSubFeature('aktivitas', 'hof', '')">
                 <div class="bl-row-icon">🏆</div>
                 <div class="bl-row-main">
-                    <div class="bl-row-title">Hall of Fame & Legasi</div>
-                    <div class="bl-row-sub">Lihat riwayat batu nisan & rekor generasi sebelumnya</div>
+                    <div class="bl-row-title">Hall of Fame & 20 Achievement</div>
+                    <div class="bl-row-sub">Cek bar penyelesaian 20 gelar legasi permanen & batu nisan</div>
                 </div>
+                <span class="bl-row-badge">${Object.keys(syncHofAchievements(true)).length}/${HOF_ACHIEVEMENTS.length}</span>
                 <span class="bl-row-chevron">›</span>
             </button>
 
@@ -8290,20 +8636,21 @@
             bodyEl.appendChild(infHead);
 
             const hasAnyResilientInf = (player.resilientInformalJobs || []).length > 0;
+            const curTotalHrsInf = getUsedWorkHours();
             INFORMAL_JOBS.forEach((ij, idx) => {
                 const isActive = (player.resilientInformalJobs || []).some(x => x.id === ij.id);
-                const sal = roundMoney(ij.salary * 0.85);
+                const sal = roundMoney(ij.salary * (15 / 40));
                 const card = document.createElement("div");
                 card.className = "item-card";
                 if (isActive) card.style.borderColor = "#16a34a";
                 card.innerHTML = `
-                    <div class="item-title">${ij.icon} ${ij.title} (+Rp ${sal} Jt/thn)</div>
-                    <div class="item-desc">${ij.desc}<br><b>Modal:</b> ${ij.reqCapital > 0 ? `Rp ${ij.reqCapital} Jt` : 'Gratis'} • <b>Aturan:</b> Maks. 1 usaha informal aktif</div>
+                    <div class="item-title">${ij.icon} ${ij.title} (15 Jam/mgg • +Rp ${sal} Jt/thn)</div>
+                    <div class="item-desc">${ij.desc}<br><b>Durasi:</b> 15 Jam/Minggu • <b>Modal:</b> ${ij.reqCapital > 0 ? `Rp ${ij.reqCapital} Jt` : 'Gratis'} • <b>Total Jam Kerja:</b> ${curTotalHrsInf}/60 Jam/mgg (Maks. 1 informal aktif)</div>
                     ${isActive
-                        ? `<button class="btn-action btn-rose" onclick="quitResilientInformalJob('${ij.id}')">🛑 Berhenti</button>`
+                        ? `<button class="btn-action btn-rose" onclick="quitResilientInformalJob('${ij.id}')">🛑 Berhenti (15 Jam/mgg)</button>`
                         : (hasAnyResilientInf
                             ? `<button class="btn-action btn-dark" style="opacity:0.65;" onclick="takeResilientInformalJob(${idx})">🔒 Berhenti Usaha Informal Aktif Dulu</button>`
-                            : `<button class="btn-action btn-emerald" onclick="takeResilientInformalJob(${idx})">🛠️ Jalankan Usaha Informal Ini</button>`)}
+                            : `<button class="btn-action btn-emerald" onclick="takeResilientInformalJob(${idx})">🛠️ Jalankan Usaha Informal (15 Jam/mgg)</button>`)}
                 `;
                 bodyEl.appendChild(card);
             });
@@ -8348,21 +8695,24 @@
             }
 
             const usedHrs = getUsedWorkHours();
-            const freeHrs = Math.max(0, 40 - usedHrs);
+            const freeHrs = Math.max(0, 60 - usedHrs);
             const sideIncAnnual = getSideJobsAnnualIncome();
+            const resInfList = player.resilientInformalJobs || [];
+            const resInfAnnual = getResilientInformalAnnualIncome();
 
             const statusHead = document.createElement("div");
             statusHead.className = "item-card";
             statusHead.style.background = "#090d16";
             statusHead.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div class="item-title" style="color:#fef3c7;">⏱️ Kuota Jam Kerja: ${usedHrs} / 40 Jam per Minggu</div>
-                    <span style="font-size:10px; background:${freeHrs > 0 ? '#065f46' : '#991b1b'}; color:#fff; padding:2px 8px; border-radius:99px; font-weight:800;">Sisa: ${freeHrs} Jam</span>
+                    <div class="item-title" style="color:#fef3c7;">⏱️ Kuota Jam Kerja: ${usedHrs} / 60 Jam per Minggu</div>
+                    <span style="font-size:10px; background:${usedHrs > 40 ? '#b45309' : (freeHrs > 0 ? '#065f46' : '#991b1b')}; color:#fff; padding:2px 8px; border-radius:99px; font-weight:800;">${usedHrs > 40 ? '⚠️ Overwork (>40j)' : `Sisa: ${freeHrs} Jam`}</span>
                 </div>
                 <div class="item-desc" style="color:#e5e7eb;">
                     • Pekerjaan Utama: <b style="color:#fcd34d;">${player.job ? `${player.job.icon} ${player.job.title} (${player.jobHours || 40} Jam/mgg • Rp ${player.salary} Jt/thn)` : 'Belum Ada'}</b><br>
                     • Kerja Sampingan Aktif: <b style="color:#34d399;">${(player.sideJobs || []).length} Pekerjaan (+Rp ${sideIncAnnual} Jt/thn)</b><br>
-                    • Total batas maksimal kerja (Full-Time + Part-Time/Sampingan) adalah <b>40 Jam/Minggu</b>.
+                    • Usaha Informal Aktif: <b style="color:#60a5fa;">${resInfList.length > 0 ? `${resInfList[0].icon} ${resInfList[0].title} (15 Jam/mgg • +Rp ${resInfAnnual} Jt/thn)` : 'Tidak Ada'}</b><br>
+                    • Total batas maksimal kerja (Formal + Informal/Sampingan) adalah <b>60 Jam/Minggu</b>. Jika bekerja <b>&gt; 40 Jam/Minggu</b>, kesehatan akan menurun drastis tiap tahun!
                 </div>
                 ${player.job ? `<button class="btn-action btn-rose" style="margin-top:4px;" onclick="resignMainJob()">🚪 Resign dari Pekerjaan Utama (${player.job.title})</button>` : ''}
             `;
@@ -8374,7 +8724,7 @@
             ptHead.style.borderColor = "#0284c7";
             ptHead.innerHTML = `
                 <div class="item-title">⏳ Kerja Sampingan Bayaran Per Jam (Usia 12+ SMP s/d Dewasa)</div>
-                <div class="item-desc">Bisa diambil sambil sekolah SMP/SMA, kuliah, atau dikombinasikan dengan pekerjaan utama Part-Time selama total jam kerja tidak melebihi <b>40 jam/minggu</b>.</div>
+                <div class="item-desc">Bisa diambil sambil sekolah SMP/SMA, kuliah, atau dikombinasikan dengan pekerjaan utama Part-Time selama total jam kerja tidak melebihi <b>60 jam/minggu</b>.</div>
             `;
             bodyEl.appendChild(ptHead);
 
@@ -9299,7 +9649,7 @@
         player.jobHours = 0;
         player.salary = 0;
         player.yearsWorked = 0;
-        addLog(`🚪 **RESIGN PEKERJAAN UTAMA:** Kamu mengundurkan diri dari posisi **${oldTitle}**. Kini jam kerjamu kembali longgar (${getUsedWorkHours()}/40 jam/mgg).`, "career");
+        addLog(`🚪 **RESIGN PEKERJAAN UTAMA:** Kamu mengundurkan diri dari posisi **${oldTitle}**. Kini jam kerjamu kembali longgar (${getUsedWorkHours()}/60 jam/mgg).`, "career");
         showToast(`Resign dari ${oldTitle}`);
         renderKarirSheet("kerja");
     }
@@ -9337,8 +9687,8 @@
         }
 
         const currentUsed = getUsedWorkHours();
-        if (currentUsed + hoursChosen > 40) {
-            showToast(`Total jam kerja tidak boleh melebihi 40 jam/minggu! Sisa kuotamu hanya ${40 - currentUsed} jam.`);
+        if (currentUsed + hoursChosen > 60) {
+            showToast(`Total jam kerja formal + informal maksimal 60 jam/minggu! Sisa kuotamu hanya ${60 - currentUsed} jam.`);
             return;
         }
 
@@ -9397,10 +9747,10 @@
             return;
         }
 
-        // Karena Karir Bintang wajib Full-Time 40 Jam/minggu, cek apakah ada kerja sampingan aktif
-        const sideHrs = (player.sideJobs || []).reduce((s, sj) => s + sj.hours, 0);
-        if (sideHrs > 0) {
-            showToast(`Karir Bintang wajib Full-Time 40 Jam/minggu! Hentikan dulu kerja sampinganmu (${sideHrs} jam) di tab Kerja.`);
+        const extraStarHrs = (player.sideJobs || []).reduce((s, sj) => s + sj.hours, 0)
+            + (player.resilientInformalJobs || []).reduce((s, ij) => s + (ij.hours || 15), 0);
+        if (40 + extraStarHrs > 60) {
+            showToast(`Total jam kerja formal + informal maksimal 60 jam/minggu (${40 + extraStarHrs}/60 jam)! Kurangi sampingan/informal dulu.`);
             return;
         }
 
@@ -9464,10 +9814,11 @@
             return;
         }
 
-        // Cek batas maksimal 40 jam/minggu bersama kerja sampingan
-        const sideHrs = (player.sideJobs || []).reduce((s, sj) => s + (sj.hours || 0), 0);
-        if (hours + sideHrs > 40) {
-            showToast(`Total jam kerja akan mencapai ${hours + sideHrs}/40 jam! Hentikan kerja sampinganmu dulu jika ingin ambil ${hours} jam/minggu.`);
+        // Cek batas maksimal 60 jam/minggu gabungan formal + sampingan + informal
+        const extraCityHrs = (player.sideJobs || []).reduce((s, sj) => s + (sj.hours || 0), 0)
+            + (player.resilientInformalJobs || []).reduce((s, ij) => s + (ij.hours || 15), 0);
+        if (hours + extraCityHrs > 60) {
+            showToast(`Total jam kerja formal + informal akan mencapai ${hours + extraCityHrs}/60 jam! Kurangi kerja sampingan/informal dulu.`);
             return;
         }
 
@@ -9569,9 +9920,10 @@
         if (!ij) return;
 
         const hours = requestedHours === 20 ? 20 : 40;
-        const sideHrs = (player.sideJobs || []).reduce((s, sj) => s + (sj.hours || 0), 0);
-        if (hours + sideHrs > 40) {
-            showToast(`Total jam kerja melebihi 40 jam/minggu (${hours + sideHrs}/40 jam)! Kurangi kerja sampinganmu dulu.`);
+        const extraInfHrs = (player.sideJobs || []).reduce((s, sj) => s + (sj.hours || 0), 0)
+            + (player.resilientInformalJobs || []).reduce((s, ij) => s + (ij.hours || 15), 0);
+        if (hours + extraInfHrs > 60) {
+            showToast(`Total jam kerja formal + informal melebihi 60 jam/minggu (${hours + extraInfHrs}/60 jam)! Kurangi kerja sampingan/informal dulu.`);
             return;
         }
 
@@ -13883,35 +14235,114 @@
         renderKarirSheet("pejabat");
     }
 
-    function renderHallOfFameSheet() {
+    function renderHallOfFameSheet(subView = "achievements") {
         const tabsEl = document.getElementById("sheetTabs");
         const bodyEl = document.getElementById("sheetBody");
-        tabsEl.innerHTML = `<button class="tab-btn active">🏆 Catatan Batu Nisan & Legasi Generasi</button>`;
+        const unlockedMap = syncHofAchievements(true);
+        const totalAch = HOF_ACHIEVEMENTS.length;
+        const unlockedCount = Object.keys(unlockedMap).length;
+        const overallPct = Math.round((unlockedCount / totalAch) * 100);
+        const nw = getPlayerTotalNetWorth(player);
+
+        tabsEl.innerHTML = `<button class="tab-btn active">🏆 Hall of Fame & 20 Achievement</button>`;
         bodyEl.innerHTML = "";
 
-        let list = [];
-        try {
-            const raw = safeStorageGet(HOF_STORAGE_KEY);
-            if (raw) list = JSON.parse(raw) || [];
-        } catch (e) {}
+        // Summary Header Card with Master Progress Bar
+        const summaryCard = document.createElement("div");
+        summaryCard.className = "item-card";
+        summaryCard.style.background = "#0f172a";
+        summaryCard.style.borderColor = "#f59e0b";
+        summaryCard.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="item-title" style="color:#fbbf24;">🏆 Koleksi Gelar Hall of Fame (${unlockedCount}/${totalAch})</div>
+                <span style="font-size:11px; font-weight:900; background:#15803d; color:#fff; padding:2px 9px; border-radius:99px;">${overallPct}% Selesai</span>
+            </div>
+            <div style="width:100%; height:12px; background:#334155; border-radius:99px; overflow:hidden; margin-top:4px;">
+                <div style="width:${overallPct}%; height:100%; background:linear-gradient(90deg, #f59e0b, #22c55e); border-radius:99px; transition:width 0.3s;"></div>
+            </div>
+            <div class="item-desc" style="color:#cbd5e1; margin-top:4px;">
+                Setiap gelar yang sudah pernah dibuka akan <b>tersimpan permanen</b> meskipun kamu memulai hidup baru / reinkarnasi (hanya hilang jika memilih <b>Reset Total</b>).
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:4px;">
+                <button class="btn-action ${subView === 'achievements' ? 'btn-gold' : 'btn-dark'}" onclick="renderHallOfFameSheet('achievements')">
+                    🏅 20 Gelar & Bar Progres (${unlockedCount}/${totalAch})
+                </button>
+                <button class="btn-action ${subView === 'tombstones' ? 'btn-gold' : 'btn-dark'}" onclick="renderHallOfFameSheet('tombstones')">
+                    🪦 Riwayat Batu Nisan
+                </button>
+            </div>
+        `;
+        bodyEl.appendChild(summaryCard);
 
-        if (list.length === 0) {
-            bodyEl.innerHTML = `<div class="item-card" style="text-align:center;"><div style="font-size:32px;">📜</div><div class="item-title">Belum Ada Catatan Legasi</div><div class="item-desc">Tamatkan satu siklus kehidupan (tutup usia atau pindah kewarganegaraan #KaburAjaDulu) untuk mengukir namamu di Hall of Fame Warga +62!</div></div>`;
+        if (subView === "tombstones") {
+            let list = [];
+            try {
+                const raw = safeStorageGet(HOF_STORAGE_KEY);
+                if (raw) list = JSON.parse(raw) || [];
+            } catch (e) {}
+
+            if (list.length === 0) {
+                const emptyCard = document.createElement("div");
+                emptyCard.className = "item-card";
+                emptyCard.style.textAlign = "center";
+                emptyCard.innerHTML = `<div style="font-size:32px;">📜</div><div class="item-title">Belum Ada Catatan Batu Nisan</div><div class="item-desc">Tamatkan satu siklus kehidupan (tutup usia atau pindah kewarganegaraan #KaburAjaDulu) untuk mengukir batu nisanmu di sini!</div>`;
+                bodyEl.appendChild(emptyCard);
+                return;
+            }
+
+            list.forEach((item, idx) => {
+                const card = document.createElement("div");
+                card.className = "item-card";
+                card.style.borderColor = idx === 0 ? "#f59e0b" : "#cbd5e1";
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:10px; font-weight:900; color:#b45309;">GENERASI KE-${item.generation} • ${item.city}</span>
+                        <span style="font-size:10px; font-weight:900; color:#15803d;">Kekayaan: ${formatShortJuta(item.netWorth)}</span>
+                    </div>
+                    <div class="item-title">${item.emoji || '🪦'} ${item.name} (${item.age} Thn)</div>
+                    <div style="font-size:11px; font-weight:900; color:#00589c;">Gelar: ${item.legacyTitle}</div>
+                    <div class="item-desc">Karier Terakhir: ${item.job}<br>${item.endReason}</div>
+                `;
+                bodyEl.appendChild(card);
+            });
             return;
         }
 
-        list.forEach((item, idx) => {
+        // Render 20 Gelar Hall of Fame dengan Bar Penyelesaian masing-masing
+        HOF_ACHIEVEMENTS.forEach((ach, i) => {
+            const isUnlocked = !!unlockedMap[ach.id];
+            const prog = player ? ach.evalProgress(player, nw) : { cur: 0, max: 1, done: false };
+            const pct = isUnlocked ? 100 : Math.min(100, Math.max(0, Math.round((prog.cur / Math.max(1, prog.max)) * 100)));
+            const barColor = isUnlocked ? "#16a34a" : (pct >= 50 ? "#f59e0b" : "#0284c7");
+            const metaUnlock = unlockedMap[ach.id];
+
             const card = document.createElement("div");
             card.className = "item-card";
-            card.style.borderColor = idx === 0 ? "#f59e0b" : "#decb9f";
+            card.style.borderColor = isUnlocked ? "#16a34a" : "#cbd5e1";
+            card.style.background = isUnlocked ? "#f0fdf4" : "#ffffff";
             card.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:10px; font-weight:900; color:#b45309;">GENERASI KE-${item.generation} • ${item.city}</span>
-                    <span style="font-size:10px; font-weight:900; color:#15803d;">Kekayaan: ${formatShortJuta(item.netWorth)}</span>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:22px;">${ach.icon}</span>
+                        <div>
+                            <div class="item-title" style="color:${isUnlocked ? '#15803d' : '#1e293b'};">${i + 1}. ${ach.title}</div>
+                            <div style="font-size:10px; font-weight:800; color:#64748b;">Target: ${ach.goalText}</div>
+                        </div>
+                    </div>
+                    <span style="font-size:10px; font-weight:900; padding:2px 8px; border-radius:99px; white-space:nowrap; background:${isUnlocked ? '#16a34a' : '#e2e8f0'}; color:${isUnlocked ? '#fff' : '#475569'};">
+                        ${isUnlocked ? '✅ TERBUKA' : `${pct}%`}
+                    </span>
                 </div>
-                <div class="item-title">${item.emoji || '🪦'} ${item.name} (${item.age} Thn)</div>
-                <div style="font-size:11px; font-weight:900; color:#7c2d12;">Gelar: ${item.legacyTitle}</div>
-                <div class="item-desc">Karier Terakhir: ${item.job}<br>${item.endReason}</div>
+                <div class="item-desc">${ach.desc}</div>
+                <div style="margin-top:2px;">
+                    <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; color:#475569; margin-bottom:3px;">
+                        <span>${isUnlocked ? `Diraih oleh: ${metaUnlock.byName} (Gen ${metaUnlock.generation}, Usia ${metaUnlock.age} Thn)` : `Progres Hidup Saat Ini: ${prog.cur} / ${prog.max}`}</span>
+                        <span>${pct}%</span>
+                    </div>
+                    <div style="width:100%; height:9px; background:#e2e8f0; border-radius:99px; overflow:hidden;">
+                        <div style="width:${pct}%; height:100%; background:${barColor}; border-radius:99px; transition:width 0.3s;"></div>
+                    </div>
+                </div>
             `;
             bodyEl.appendChild(card);
         });
@@ -13937,13 +14368,22 @@
 
     function computeLegacyTitle(p, totalNetWorth) {
         if (p.migrated) return `✈️ Eksil Sultan #KaburAjaDulu (${p.migratedCountry ? p.migratedCountry.name : 'Luar Negeri'})`;
-        if (hasCriminalRecord() && (p.govHistory && Object.keys(p.govHistory).length > 0)) return "⛓️ Mantan Pejabat Terjerat Kasus Korupsi";
+        if (hasCriminalRecord() && (p.govHistory && Object.keys(p.govHistory).length > 0)) return "💼 Mantan Pejabat Tersandung Kasus";
         if (hasCriminalRecord()) return "⛓️ Warga Bertato SKCK Merah";
-        if (p.govHistory && p.govHistory.presiden > 0) return "👑 Mantan Presiden Republik +62";
+        if (p.govHistory && p.govHistory.presiden > 0) return "👑 Presiden Republik +62";
         if (totalNetWorth >= 10000) return "💎 Konglomerat Naga +62";
-        if (p.family && p.family.id === "sandwich" && totalNetWorth >= 500) return "🥪 Pejuang Sandwich Sukses Memutus Rantai";
-        if (totalNetWorth < 0) return "💸 Terlilit Pinjol Hingga Akhir Hayat";
-        return "🇮🇩 Warga +62 Teladan";
+        if (p.hasDegreeS3 && (p.stats?.edu || 0) >= 90) return "🎓 Profesor Doktor Paripurna +62";
+        if (p.job && p.job.isSpecialCareer && (p.stats?.social || 0) >= 90) return "🌟 Megabintang Legendaris Nusantara";
+        if (p.govHistory && Object.keys(p.govHistory).filter(k => p.govHistory[k] > 0).length >= 2) return "🏛️ Dinasti Politik & Penguasa Daerah";
+        if ((p.assets || []).length >= 5) return "🏘️ Juragan Kontrakan & Tuan Tanah";
+        if (p.family && p.family.id === "sandwich" && totalNetWorth >= 500) return "🥪 Pejuang Sandwich Pemutus Rantai";
+        if ((p.socialMediaJobs || []).length > 0 && (p.stats?.social || 0) >= 90 && totalNetWorth >= 1000) return "📱 Selebgram & Sultan Endorse +62";
+        if ((p.exPartners || []).length >= 4) return "💔 Playboy / Playgirl Legendaris +62";
+        if ((p.overworkYears || 0) >= 10) return "🥵 Pejuang Hustle Culture Tanpa Henti";
+        if (p.age >= 80 && (p.stats?.health || 0) >= 80 && (p.stats?.happy || 0) >= 80) return "🕊️ Pensiunan Sultan Hidup Tenang";
+        if (!p.alive && p.age < 30) return "🕯️ Gugur Muda di Tengah Perjuangan";
+        if (totalNetWorth < 0) return "💸 Terlilit Pinjol & Galbay Nasional";
+        return "🇮🇩 Warga +62 Teladan Sejati";
     }
 
     function recordToHallOfFame(title, reason, emoji) {
