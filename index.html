@@ -3632,15 +3632,15 @@
                 }
             }
         } else {
-            const bpjsObj = BPJS_PLANS.find(b => b.id === (player.bpjsPlan || "none")) || BPJS_PLANS[0];
+            const bpjsKes = syncPlayerBpjsKesehatanStatus();
             if (hasHealthVip) {
                 const hi = player.healthInsurance;
                 outOfPocketMed = roundMoney(rawMedCost * (1 - hi.coverage));
                 inpatientBonus = hi.inpatientCashBonus || 0;
                 coverageLabel = `${hi.icon} ${hi.name} (${Math.round(hi.coverage * 100)}% cover + Santunan Rawat Inap Rp ${inpatientBonus} Jt)`;
-            } else if (bpjsObj.coverage > 0) {
-                outOfPocketMed = roundMoney(rawMedCost * (1 - bpjsObj.coverage));
-                coverageLabel = `🏥 ${bpjsObj.name} (${Math.round(bpjsObj.coverage * 100)}% dicover)`;
+            } else if (bpjsKes.coverage > 0) {
+                outOfPocketMed = roundMoney(rawMedCost * (1 - bpjsKes.coverage));
+                coverageLabel = `🏥 ${bpjsKes.label} (${Math.round(bpjsKes.coverage * 100)}% dicover)`;
             }
         }
 
@@ -5072,6 +5072,10 @@
 
     function subscribeLifeInsurance(planId) {
         if (!player || !player.alive) return;
+        if (player.age < 18) {
+            showToast("Asuransi swasta hanya dapat dibeli setelah berusia 18 tahun!");
+            return;
+        }
         const plan = LIFE_INSURANCE_PLANS.find(p => p.id === planId);
         if (!plan) return;
         if (player.age > plan.maxEntryAge) {
@@ -5105,6 +5109,10 @@
 
     function subscribeHealthInsurance(planId) {
         if (!player || !player.alive) return;
+        if (player.age < 18) {
+            showToast("Asuransi swasta hanya dapat dibeli setelah berusia 18 tahun!");
+            return;
+        }
         const plan = HEALTH_INSURANCE_PLANS.find(p => p.id === planId);
         if (!plan) return;
         if (player.age > plan.maxEntryAge) {
@@ -5380,6 +5388,161 @@
         { id: "kelas2", name: "BPJS Kesehatan Kelas 2", annualCost: 1.3, coverage: 0.85, desc: "Iuran Rp 1,3 Jt/thn • Menanggung 85% biaya RS dengan kamar rawat lebih nyaman." },
         { id: "kelas1", name: "BPJS Kesehatan Kelas 1", annualCost: 1.8, coverage: 0.92, desc: "Iuran Rp 1,8 Jt/thn • Menanggung 92% biaya RS & akses rujukan cepat." }
     ];
+
+
+    // =========================================================================
+    // SISTEM BPJS KESEHATAN (ORANG TUA / PBI PEMERINTAH) & BPJS KETENAGAKERJAAN
+    // =========================================================================
+    function isParentAbleToAffordBpjs() {
+        if (!player) return false;
+        if (player.birthOrigin === "orphanage") return false;
+        const aliveParents = (player.parents || []).filter(p => p.alive);
+        if (aliveParents.length === 0) return false;
+        const totalParentWealth = aliveParents.reduce((s, p) => s + (p.wealth || 0), 0);
+        const totalParentIncome = aliveParents.reduce((s, p) => s + (p.income || 0), 0);
+        const poorTier = player.family && (player.family.id === "sandwich" || player.family.id === "buruh");
+        return !poorTier && (totalParentWealth >= 15 || totalParentIncome >= 6);
+    }
+
+    function hasAnyActiveWork() {
+        if (!player) return false;
+        return !!(
+            player.job ||
+            (player.sideJobs && player.sideJobs.length > 0) ||
+            (player.socialMediaJobs && player.socialMediaJobs.length > 0) ||
+            (player.resilientInformalJobs && player.resilientInformalJobs.length > 0)
+        );
+    }
+
+    function isCurrentWorkInformal() {
+        if (!player) return false;
+        const hasInfSideOrMed = (player.sideJobs && player.sideJobs.length > 0) ||
+            (player.socialMediaJobs && player.socialMediaJobs.length > 0) ||
+            (player.resilientInformalJobs && player.resilientInformalJobs.length > 0);
+        if (!player.job) return hasInfSideOrMed;
+        if (player.job.isInformal || player.job.taxType === "umkm" || player.job.isNegativeSpecial) return true;
+        return false;
+    }
+
+    function syncPlayerBpjsKesehatanStatus() {
+        if (!player) return { label: "Tidak Aktif", annualCost: 0, coverage: 0, source: "none" };
+        const working = hasAnyActiveWork();
+
+        // Sebelum bekerja (sejak awal lahir): dicover orang tua jika mampu, atau PBI Pemerintah (Gratis) jika tidak mampu
+        if (!working && !player.retired) {
+            if (isParentAbleToAffordBpjs()) {
+                const pPlan = (player.family && (player.family.id === "pejabat" || player.family.id === "sultan")) ? "kelas1" : "kelas2";
+                const planObj = BPJS_PLANS.find(b => b.id === pPlan) || BPJS_PLANS[2];
+                player.bpjsPlan = pPlan;
+                player.bpjsSource = "parents";
+                return {
+                    label: `${planObj.name} (Ditanggung Orang Tua • Rp 0 untukmu)`,
+                    annualCost: 0,
+                    coverage: planObj.coverage,
+                    source: "parents"
+                };
+            } else {
+                player.bpjsPlan = "pbi";
+                player.bpjsSource = "pbi";
+                return {
+                    label: "BPJS Kesehatan PBI (Gratis Ditanggung Pemerintah)",
+                    annualCost: 0,
+                    coverage: 0.85,
+                    source: "pbi"
+                };
+            }
+        }
+
+        // Sudah bekerja / pensiun: jika masih berstatus PBI/parents, otomatis beralih ke kepesertaan mandiri/pekerja
+        if (!player.bpjsPlan || player.bpjsPlan === "pbi" || player.bpjsSource === "parents") {
+            player.bpjsSource = "self";
+            player.bpjsPlan = isParentAbleToAffordBpjs() ? "kelas2" : "kelas3";
+        }
+        const planObj = BPJS_PLANS.find(b => b.id === player.bpjsPlan) || BPJS_PLANS[1];
+        return {
+            label: `${planObj.name} (${planObj.annualCost > 0 ? `Rp ${planObj.annualCost} Jt/thn` : 'Non-BPJS'})`,
+            annualCost: planObj.annualCost,
+            coverage: planObj.coverage,
+            source: "self"
+        };
+    }
+
+    function calculateBpjsKetenagakerjaan() {
+        if (!player || player.inJail || !hasAnyActiveWork()) {
+            return {
+                active: false,
+                type: "none",
+                label: "Tidak Bekerja",
+                annualGross: 0,
+                monthlyGross: 0,
+                monthlyFeeRb: 0,
+                annualCost: 0,
+                informalTier: player && player.bpjsTkInformalTier ? player.bpjsTkInformalTier : 16,
+                detail: "Belum memiliki pekerjaan aktif"
+            };
+        }
+
+        const annualGross = roundMoney(
+            (player.job ? (player.salary || 0) : 0) +
+            getSideJobsAnnualIncome() +
+            getSocialMediaAnnualIncome() +
+            getResilientInformalAnnualIncome()
+        );
+        const monthlyGross = annualGross / 12; // dalam Juta Rp/bulan
+        const isInformal = isCurrentWorkInformal();
+
+        if (!isInformal) {
+            // PEKERJAAN FORMAL: Dipotong perusahaan sesuai gaji berdasarkan ketentuan BPJS Ketenagakerjaan
+            // JHT Pekerja (2%) + JP Pekerja (1% dengan batas atas upah ~Rp 10,5 Jt/bln) = ~3% dari gaji
+            const jhtWorker = annualGross * 0.02;
+            const jpCapAnnual = 126; // ~Rp 10,5 Jt/bln x 12
+            const jpWorker = Math.min(annualGross, jpCapAnnual) * 0.01;
+            const annualCost = roundMoney(jhtWorker + jpWorker);
+            const monthlyFeeRb = Math.round((annualCost * 1000) / 12);
+            return {
+                active: true,
+                type: "formal",
+                label: "BPJS Ketenagakerjaan Formal (Potongan Gaji Perusahaan ~3%)",
+                annualGross,
+                monthlyGross: roundMoney(monthlyGross),
+                monthlyFeeRb,
+                annualCost,
+                informalTier: 16,
+                detail: `Dipotong otomatis dari gaji Rp ${annualGross} Jt/thn (JHT 2% + JP 1% = -Rp ${annualCost} Jt/thn)`
+            };
+        } else {
+            // PEKERJAAN INFORMAL (BPU): Pilihan dasar Rp 16.800 (~16rb) atau Rp 36.800 (~36rb) per bulan untuk pendapatan <= Rp 1 Jt/bln;
+            // Jika pendapatan > Rp 1 Jt/bln, diperhitungkan secara proporsional berdasarkan pendapatan!
+            const tierRb = player.bpjsTkInformalTier === 36 ? 36 : 16;
+            const incomeUnits = Math.max(1, monthlyGross); // kelipatan per Rp 1 Jt pendapatan/bulan
+            const monthlyFeeRb = Math.round(tierRb * incomeUnits);
+            const annualCost = roundMoney((monthlyFeeRb * 12) / 1000);
+            return {
+                active: true,
+                type: "informal",
+                label: `BPJS Ketenagakerjaan Informal BPU (Paket Rp ${tierRb} Rb/bln per Rp 1 Jt)`,
+                annualGross,
+                monthlyGross: roundMoney(monthlyGross),
+                monthlyFeeRb,
+                annualCost,
+                informalTier: tierRb,
+                detail: monthlyGross <= 1
+                    ? `Pendapatan ≤ Rp 1 Jt/bln: tarif dasar Rp ${tierRb} Rb/bln (-Rp ${annualCost} Jt/thn)`
+                    : `Pendapatan Rp ${roundMoney(monthlyGross)} Jt/bln (> Rp 1 Jt): diperhitungkan sesuai pendapatan = Rp ${monthlyFeeRb} Rb/bln (-Rp ${annualCost} Jt/thn)`
+            };
+        }
+    }
+
+    function setBpjsTkInformalTier(tierVal) {
+        if (!player) return;
+        player.bpjsTkInformalTier = tierVal === 36 ? 36 : 16;
+        const bpjsTk = calculateBpjsKetenagakerjaan();
+        addLog(`🦺 **BPJS KETENAGAKERJAAN INFORMAL:** Kamu memilih skema iuran **Rp ${player.bpjsTkInformalTier} Rb/bulan per Rp 1 Jt pendapatan** (Estimasi potongan: **-Rp ${bpjsTk.annualCost} Jt/thn** berdasarkan pendapatanmu).`, "normal");
+        showToast(`Skema BPJS TK Informal: Rp ${player.bpjsTkInformalTier} Rb/bln dipilih!`);
+        if (currentModalType === "upgrade") renderUpgradeSheet("kesehatan");
+        else if (currentModalType === "karir") renderKarirSheet("pajak");
+        updateUI();
+    }
 
     const POLITICAL_PARTIES = [
         { id: "partai_merakyat", name: "Partai Wong Cilik Nusantara (PWCN)", fee: 15, reqSocial: 55, powerBonus: 0.08, desc: "Basis massa akar rumput kuat. Cocok untuk jalur Ketua RT, Lurah & Walikota." },
@@ -6431,10 +6594,16 @@
             if (pet.alive) cost += (pet.annualCost || 2);
         });
 
-        // Iuran Tahunan BPJS Kesehatan
-        const bpjsObj = BPJS_PLANS.find(b => b.id === (player.bpjsPlan || "none"));
-        if (bpjsObj && bpjsObj.annualCost > 0) {
-            cost += bpjsObj.annualCost;
+        // Iuran Tahunan BPJS Kesehatan (Dicover Ortu jika mampu / PBI Pemerintah sampai bekerja)
+        const bpjsKesStatus = syncPlayerBpjsKesehatanStatus();
+        if (bpjsKesStatus.annualCost > 0) {
+            cost += bpjsKesStatus.annualCost;
+        }
+
+        // Iuran Tahunan BPJS Ketenagakerjaan (Wajib untuk semua pekerjaan formal & informal)
+        const bpjsTkStatus = calculateBpjsKetenagakerjaan();
+        if (bpjsTkStatus.active && bpjsTkStatus.annualCost > 0) {
+            cost += bpjsTkStatus.annualCost;
         }
 
         // Premi Tahunan Polis Asuransi Jiwa VIP (Rp 25 Jt/thn, atau Rp 0 jika sudah bebas premi sakit kritis)
@@ -6646,6 +6815,8 @@
         } else if (player.parents.length >= 2) {
             addLog(`👨‍👩‍👦 **KONDISI EKONOMI ORANG TUA:** Ayah (**${player.parents[0].name}**) & Ibu (**${player.parents[1].name}**) memiliki total tabungan keluarga **${formatShortJuta(combinedParentWealth)}** (Penghasilan Ortu: Rp ${player.family.parentIncome} Jt/thn) • Proteksi Medis Ortu: **${player.parentInsurance.icon} ${player.parentInsurance.name}** (${Math.round(player.parentInsurance.coverage * 100)}% cover). ${player.kipActive ? '💳 Kamu terdaftar penerima **Kartu Indonesia Pintar (KIP)**!' : ''}`, "normal");
         }
+        const initBpjs = syncPlayerBpjsKesehatanStatus();
+        addLog(`🏥 **JAMINAN KESEHATAN SEJAK LAHIR:** Kepesertaan BPJS Kesehatanmu otomatis aktif melalui **${initBpjs.label}** sampai kamu mulai bekerja.`, "school");
         addLog(`🎲 **TAKDIR AWAL :** Kamu lahir membawa karakteristik unik **${player.trait.icon} ${player.trait.name}**. Amati perkembangan ke-5 bar parameter hidupmu di bagian bawah layar!`, "normal");
 
         updateUI();
@@ -6783,6 +6954,14 @@
             const li = player.lifeInsurance;
             const insBadgeText = li.waiverActive ? `${li.icon || '🛡️'} ${li.name || 'Asuransi Jiwa'} (Bebas Premi)` : `${li.icon || '🛡️'} ${li.name || 'Asuransi Jiwa'}`;
             bHtml += `<span class="mini-badge" style="color:#0369a1; background:#e0f2fe; border-color:#38bdf8;">${insBadgeText}</span>`;
+        }
+        const bpjsKesBadge = syncPlayerBpjsKesehatanStatus();
+        if (bpjsKesBadge.coverage > 0) {
+            bHtml += `<span class="mini-badge" style="color:#0369a1; background:#e0f2fe; border-color:#7dd3fc;">🏥 ${bpjsKesBadge.source === "pbi" ? "BPJS PBI Pemerintah" : (bpjsKesBadge.source === "parents" ? "BPJS Ortu" : "BPJS Kesehatan")}</span>`;
+        }
+        const bpjsTkBadge = calculateBpjsKetenagakerjaan();
+        if (bpjsTkBadge.active) {
+            bHtml += `<span class="mini-badge" style="color:#92400e; background:#fef3c7; border-color:#fcd34d;">🦺 BPJS TK ${bpjsTkBadge.type === "formal" ? "Formal" : `Informal (${bpjsTkBadge.informalTier}rb)`}</span>`;
         }
         if (hasActiveHealthInsurance()) {
             const hi = player.healthInsurance;
@@ -8850,9 +9029,11 @@
                     lifeCard.style.borderColor = "#0284c7";
                     let lifeBtns = LIFE_INSURANCE_PLANS.map(p => {
                         const isThis = isLifeActive && curLife.planId === p.id;
-                        const ageBlocked = player.age > p.maxEntryAge;
+                        const underAge = player.age < 18;
+                        const ageBlocked = underAge || player.age > p.maxEntryAge;
+                        const prefix = isThis ? '✅ AKTIF:' : (underAge ? '🔒 MIN. 18 THN:' : (player.age > p.maxEntryAge ? '🔒 USIA LEWAT:' : '🛡️ Pilih:'));
                         return `<button class="btn-action ${isThis ? 'btn-emerald' : (ageBlocked ? 'btn-dark' : 'btn-primary')}" style="text-align:left;" onclick="subscribeLifeInsurance('${p.id}')">
-                            ${isThis ? '✅ AKTIF:' : (ageBlocked ? '🔒 USIA LEWAT:' : '🛡️ Pilih:')} <b>${p.icon} ${p.name}</b> — Rp ${p.annualPremium} Jt/thn<br>
+                            ${prefix} <b>${p.icon} ${p.name}</b> — Rp ${p.annualPremium} Jt/thn<br>
                             <span style="font-size:9.5px; font-weight:600;">${p.desc}</span>
                         </button>`;
                     }).join("");
@@ -8871,9 +9052,11 @@
                     healthCard.style.borderColor = "#16a34a";
                     let healthBtns = HEALTH_INSURANCE_PLANS.map(p => {
                         const isThis = isHealthActive && curHealth.planId === p.id;
-                        const ageBlocked = player.age > p.maxEntryAge;
+                        const underAge = player.age < 18;
+                        const ageBlocked = underAge || player.age > p.maxEntryAge;
+                        const prefix = isThis ? '✅ AKTIF:' : (underAge ? '🔒 MIN. 18 THN:' : (player.age > p.maxEntryAge ? '🔒 USIA LEWAT:' : '🏥 Pilih:'));
                         return `<button class="btn-action ${isThis ? 'btn-emerald' : (ageBlocked ? 'btn-dark' : 'btn-gold')}" style="text-align:left;" onclick="subscribeHealthInsurance('${p.id}')">
-                            ${isThis ? '✅ AKTIF:' : (ageBlocked ? '🔒 USIA LEWAT:' : '🏥 Pilih:')} <b>${p.icon} ${p.name}</b> — Rp ${p.annualPremium} Jt/thn<br>
+                            ${prefix} <b>${p.icon} ${p.name}</b> — Rp ${p.annualPremium} Jt/thn<br>
                             <span style="font-size:9.5px; font-weight:600;">${p.desc}</span>
                         </button>`;
                     }).join("");
@@ -8941,6 +9124,7 @@
                     <div style="display:flex; justify-content:space-between;"><span>PKB Kendaraan (2% + Progresif):</span><b style="color:#f87171;">-Rp ${tx.vehicleTax} Jt/thn</b></div>
                     <div style="display:flex; justify-content:space-between;"><span>PBB Properti & PPh Sewa 10%:</span><b style="color:#f87171;">-Rp ${tx.propertyTax} Jt/thn</b></div>
                     <div style="display:flex; justify-content:space-between;"><span>Pajak Bisnis & Konsesi Tambang:</span><b style="color:#f87171;">-Rp ${tx.businessAssetTax} Jt/thn</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>Iuran BPJS Ketenagakerjaan (${calculateBpjsKetenagakerjaan().type === 'formal' ? 'Formal' : (calculateBpjsKetenagakerjaan().type === 'informal' ? 'Informal' : 'Non-Aktif')}):</span><b style="color:#f87171;">-Rp ${calculateBpjsKetenagakerjaan().annualCost} Jt/thn</b></div>
                     ${tx.consultantFee > 0 ? `<div style="display:flex; justify-content:space-between;"><span>Retainer Konsultan Tax Planning:</span><b style="color:#fbbf24;">-Rp ${tx.consultantFee} Jt/thn</b></div>` : ''}
                     <div style="border-top:1px solid #374151; padding-top:5px; display:flex; justify-content:space-between; font-size:12px;">
                         <b>Total Potongan Pajak Efektif:</b>
@@ -9492,6 +9676,10 @@
         if (!as) return;
 
         if (as.id === "asuransi") {
+            if (player.age < 18) {
+                showToast("Asuransi swasta hanya dapat dibeli setelah berusia 18 tahun!");
+                return;
+            }
             if (hasActiveLifeInsurance()) {
                 showToast("Kamu sudah memiliki Polis Asuransi Jiwa VIP (maksimal hanya 1 polis)!");
                 return;
@@ -9893,22 +10081,76 @@
         }
 
         if (tab === "kesehatan") {
-            const curBpjs = player.bpjsPlan || "none";
+            const bpjsKes = syncPlayerBpjsKesehatanStatus();
+            const bpjsTk = calculateBpjsKetenagakerjaan();
+            const workingNow = hasAnyActiveWork();
+
             const bpjsCard = document.createElement("div");
             bpjsCard.className = "item-card";
             bpjsCard.style.borderColor = "#0284c7";
-            let bpjsBtns = BPJS_PLANS.map(b => `
-                <button class="btn-action ${curBpjs === b.id ? 'btn-emerald' : 'btn-dark'}" style="text-align:left;" onclick="selectBpjsPlan('${b.id}')">
-                    ${curBpjs === b.id ? '✅ AKTIF:' : '💳 Pilih:'} <b>${b.name}</b> (${b.annualCost > 0 ? `Rp ${b.annualCost} Jt/thn` : 'Gratis'})<br>
-                    <span style="font-size:9.5px; font-weight:600;">${b.desc}</span>
-                </button>
-            `).join("");
-            bpjsCard.innerHTML = `
-                <div class="item-title">🏥 Kepesertaan BPJS Kesehatan Nasional</div>
-                <div class="item-desc">Iuran BPJS dibayar otomatis setiap tahun dan memangkas biaya pengobatan rumah sakit secara drastis!</div>
-                <div style="display:flex; flex-direction:column; gap:6px;">${bpjsBtns}</div>
-            `;
+
+            if (!workingNow && !player.retired) {
+                bpjsCard.innerHTML = `
+                    <div class="item-title">🏥 Kepesertaan BPJS Kesehatan (Otomatis Sejak Lahir)</div>
+                    <div class="item-desc">
+                        Status Aktif: <b style="color:#15803d;">✅ ${bpjsKes.label}</b><br>
+                        • Karena kamu belum bekerja, BPJS Kesehatanmu otomatis ditanggung <b>${bpjsKes.source === "parents" ? "Orang Tua" : "Pemerintah (Jalur PBI Gratis)"}</b> sampai kamu mulai bekerja (formal maupun informal).<br>
+                        • Asuransi swasta baru dapat dibeli setelah berusia <b>18 tahun</b>.
+                    </div>
+                `;
+            } else {
+                const curBpjs = player.bpjsPlan || "kelas3";
+                let bpjsBtns = BPJS_PLANS.filter(b => b.id !== "none").map(b => `
+                    <button class="btn-action ${curBpjs === b.id ? 'btn-emerald' : 'btn-dark'}" style="text-align:left;" onclick="selectBpjsPlan('${b.id}')">
+                        ${curBpjs === b.id ? '✅ AKTIF:' : '💳 Pilih:'} <b>${b.name}</b> (Rp ${b.annualCost} Jt/thn)<br>
+                        <span style="font-size:9.5px; font-weight:600;">${b.desc}</span>
+                    </button>
+                `).join("");
+                bpjsCard.innerHTML = `
+                    <div class="item-title">🏥 Kepesertaan BPJS Kesehatan Nasional</div>
+                    <div class="item-desc">Karena kamu sudah bekerja/mandiri, kepesertaan BPJS Kesehatan beralih ke iuran mandiri/pekerja:</div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">${bpjsBtns}</div>
+                `;
+            }
             bodyEl.appendChild(bpjsCard);
+
+            // Kartu BPJS Ketenagakerjaan (Wajib untuk semua pekerjaan)
+            const tkCard = document.createElement("div");
+            tkCard.className = "item-card";
+            tkCard.style.borderColor = "#f59e0b";
+            if (!bpjsTk.active) {
+                tkCard.innerHTML = `
+                    <div class="item-title">🦺 BPJS Ketenagakerjaan (Wajib Saat Bekerja)</div>
+                    <div class="item-desc">Saat ini kamu belum bekerja. Begitu kamu mengambil pekerjaan <b>Formal</b> maupun <b>Informal</b>, BPJS Ketenagakerjaan otomatis aktif dan diperhitungkan dari pendapatanmu.</div>
+                `;
+            } else if (bpjsTk.type === "formal") {
+                tkCard.innerHTML = `
+                    <div class="item-title">🦺 BPJS Ketenagakerjaan — Pekerja Formal (PPU)</div>
+                    <div class="item-desc">
+                        Status: <b style="color:#15803d;">✅ Wajib Aktif (Dipotong Perusahaan)</b><br>
+                        • ${bpjsTk.detail}<br>
+                        • Estimasi Potongan Bulanan: <b>Rp ${bpjsTk.monthlyFeeRb} Rb/bln</b> (<b>-Rp ${bpjsTk.annualCost} Jt/thn</b>).
+                    </div>
+                `;
+            } else {
+                const tier = bpjsTk.informalTier;
+                tkCard.innerHTML = `
+                    <div class="item-title">🦺 BPJS Ketenagakerjaan — Pekerja Informal (BPU)</div>
+                    <div class="item-desc">
+                        Wajib untuk semua pekerjaan informal! Pilih tarif dasar per <b>Rp 1 Jt pendapatan/bulan</b> (jika pendapatan > Rp 1 Jt/bln, otomatis dihitung proporsional berdasarkan pendapatanmu saat ini <b>Rp ${bpjsTk.monthlyGross} Jt/bln</b>):<br>
+                        • Potongan Aktual Saat Ini: <b style="color:#dc2626;">Rp ${bpjsTk.monthlyFeeRb} Rb/bln (-Rp ${bpjsTk.annualCost} Jt/thn)</b>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:4px;">
+                        <button class="btn-action ${tier === 16 ? 'btn-emerald' : 'btn-dark'}" onclick="setBpjsTkInformalTier(16)">
+                            ${tier === 16 ? '✅ ' : ''}Paket Dasar Rp 16 Rb/bln<br><span style="font-size:9px;">(JKK + JKM per Rp 1 Jt/bln)</span>
+                        </button>
+                        <button class="btn-action ${tier === 36 ? 'btn-emerald' : 'btn-dark'}" onclick="setBpjsTkInformalTier(36)">
+                            ${tier === 36 ? '✅ ' : ''}Paket Lengkap Rp 36 Rb/bln<br><span style="font-size:9px;">(JKK + JKM + JHT per Rp 1 Jt/bln)</span>
+                        </button>
+                    </div>
+                `;
+            }
+            bodyEl.appendChild(tkCard);
 
             const hasVipLife = hasActiveLifeInsurance();
             const rsCard = document.createElement("div");
@@ -13578,9 +13820,9 @@
         if (!player) return;
         const coveredByVip = hasActiveLifeInsurance();
         if (mode === "bpjs_rs") {
-            const plan = BPJS_PLANS.find(b => b.id === (player.bpjsPlan || "none"));
+            const bpjsKes = syncPlayerBpjsKesehatanStatus();
             const baseFee = 1.5;
-            const finalFee = coveredByVip ? 0 : roundMoney(baseFee * (1 - (plan ? plan.coverage : 0)));
+            const finalFee = coveredByVip ? 0 : roundMoney(baseFee * (1 - bpjsKes.coverage));
             if (player.money < finalFee) { showToast(`Saldo kurang ${formatShortJuta(finalFee)}!`); return; }
             if (finalFee > 0) player.money = roundMoney(player.money - finalFee);
             const gain = randInt(8, 18);
