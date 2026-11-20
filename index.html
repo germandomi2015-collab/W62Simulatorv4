@@ -1328,12 +1328,12 @@
     <main id="lifeLog" class="log-Area"></main>
 
     <!-- Navigasi Bawah BitLife (Hanya 5 Menu: Sekolah/Karir - Aset - +Age - Relasi - Aktivitas) -->
-    <nav class="bottom-nav">
-        <button class="nav-btn" onclick="openModal('sekolah')">
+    <nav id="bottomNavNormal" class="bottom-nav">
+        <button id="navBtnSekolah" class="nav-btn" onclick="openModal('sekolah')">
             <div id="navSekolahIcon" class="nav-icon" style="background:#f97316; color:#ffffff;">🎓</div>
             <span id="navSekolahLabel" class="nav-label">Sekolah</span>
         </button>
-        <button class="nav-btn" onclick="openModal('aset')">
+        <button id="navBtnAset" class="nav-btn" onclick="openModal('aset')">
             <div class="nav-icon" style="background:#14b8a6; color:#ffffff;">💰</div>
             <span class="nav-label">Aset</span>
             <span id="badgeAssetCount" class="nav-badge hidden">0</span>
@@ -1344,14 +1344,32 @@
                 <span class="thn">Age</span>
             </button>
         </div>
-        <button class="nav-btn" onclick="openModal('relasi')">
+        <button id="navBtnRelasi" class="nav-btn" onclick="openModal('relasi')">
             <div class="nav-icon" style="background:#06b6d4; color:#ffffff;">❤️</div>
             <span class="nav-label">Relasi</span>
             <span id="badgeFamilyCount" class="nav-badge hidden">0</span>
         </button>
-        <button class="nav-btn" onclick="openModal('aktivitas')">
+        <button id="navBtnAktivitas" class="nav-btn" onclick="openModal('aktivitas')">
             <div class="nav-icon" style="background:#22c55e; color:#ffffff;">⋯</div>
             <span class="nav-label">Aktivitas</span>
+        </button>
+    </nav>
+
+    <!-- Navigasi Khusus Tahanan Lapas: Semua Aktivitas Dikunci, Hanya +Age & Surrender -->
+    <nav id="bottomNavJail" class="bottom-nav hidden" style="grid-template-columns: 1fr auto 1fr; padding: 8px 14px 10px; background: linear-gradient(180deg, #450a0a 0%, #7f1d1d 100%); border-color: #991b1b;">
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0.75;">
+            <div class="nav-icon" style="background:#1f2937; color:#fca5a5; border-color:#ef4444;">🔒</div>
+            <span class="nav-label" style="color:#fecaca;">Aktivitas Dikunci</span>
+        </div>
+        <div class="age-btn-wrap">
+            <button class="btn-age-up" onclick="ageUp()">
+                <span class="plus">+</span>
+                <span class="thn">Age</span>
+            </button>
+        </div>
+        <button class="nav-btn" onclick="surrenderInJail()">
+            <div class="nav-icon" style="background:#dc2626; color:#ffffff; border-color:#fecaca;">🏳️</div>
+            <span class="nav-label" style="color:#fef08a;">Surrender</span>
         </button>
     </nav>
 
@@ -2239,7 +2257,7 @@
             reqSocial: 15,
             arrestChance: 0.06, // RNG sangat rendah (6% per tahun)
             crimeName: "Pencurian Unggas / Maling Ayam Warga",
-            desc: "Beraksi diam-diam di kandang belakang rumah warga saat dini hari. Peluang tertangkap RNG sangat rendah, namun kalau ketahuan warga/polisi ancamannya 1–5 tahun."
+            desc: "Beraksi diam-diam di kandang belakang rumah warga saat dini hari. Peluang tertangkap sangat rendah, namun kalau ketahuan warga/polisi ancamannya 1–5 tahun."
         },
         {
             id: "neg_dc",
@@ -2920,7 +2938,7 @@
             `Selamat menginjak usia <b>17 tahun</b>! Selain resmi punya KTP & sudah boleh mengikuti <b>Ujian SIM (A / C / B1 / B2)</b>, kamu menjalani pemeriksaan kesehatan mata rutin di klinik optik.<br><br>Mari cek apakah penglihatanmu normal atau mengalami rabun jauh (minus) yang mengharuskanmu memakai kacamata!`,
             [
                 {
-                    text: "👓 Lakukan Pemeriksaan Mata (Tes Huruf Snellen • RNG)",
+                    text: "👓 Lakukan Pemeriksaan Mata (Tes Huruf Snellen)",
                     fn: () => {
                         const minusChance = (player.stats && player.stats.edu >= 75) ? 0.52 : 0.44;
                         player.eyeChecked = true;
@@ -3134,6 +3152,32 @@
         renderGradExamQuestion();
     }
 
+    function markCurrentSchoolExpelled() {
+        if (!player) return;
+        player.droppedOut = true;
+        if (player.age <= 11 || player.schoolRepeatStage === "sd") {
+            player.expelledStage = "sd";
+        } else if (player.age <= 14 || player.schoolRepeatStage === "smp") {
+            player.expelledStage = "smp";
+        } else if (player.age <= 18 || player.schoolRepeatStage === "sma") {
+            player.expelledStage = "sma";
+        }
+    }
+
+    function getEducationBlockReason() {
+        if (!player) return null;
+        if (player.expelledStage === "sd") {
+            return "Kamu pernah dikeluarkan dari SD sehingga tidak dapat melanjutkan ke SMP, SMA, maupun mendaftar kuliah S1/S2/S3.";
+        }
+        if (player.expelledStage === "smp") {
+            return "Kamu pernah dikeluarkan dari SMP sehingga tidak dapat melanjutkan ke SMA maupun mendaftar kuliah S1/S2/S3.";
+        }
+        if (player.expelledStage === "sma" || (player.droppedOut && !player.graduatedSMA)) {
+            return "Kamu pernah dikeluarkan / tidak lulus dari SMA sehingga tidak dapat mendaftar kuliah S1, S2, maupun S3.";
+        }
+        return null;
+    }
+
     function handleGraduationCheat() {
         if (!activeGradExam || !player) return;
         const exam = activeGradExam;
@@ -3160,10 +3204,10 @@
                 showToast(`🚨 Ketahuan mencontek! Dikeluarkan dari ${oldU}!`);
             } else {
                 const oldSch = player.currentSchool ? player.currentSchool.name : "Sekolah";
+                markCurrentSchoolExpelled();
                 player.currentSchool = null;
                 player.schoolRepeatStage = null;
                 player.schoolFailStreak = 0;
-                player.droppedOut = true;
                 if (player.kipActive && !player.kipRevoked) {
                     player.kipRevoked = true;
                     player.kipActive = false;
@@ -3883,8 +3927,9 @@
             return;
         }
         if (!Array.isArray(player.socialMediaJobs)) player.socialMediaJobs = [];
-        if (player.socialMediaJobs.some(x => x.id === sm.id)) {
-            showToast(`Kamu sudah menjalankan ${sm.title}!`);
+        if (player.socialMediaJobs.length > 0) {
+            const curSm = player.socialMediaJobs[0];
+            showToast(`Kamu hanya bisa memilih salah satu profesi Content Creator! Berhenti dulu dari ${curSm.title}.`);
             return;
         }
         startJobInterviewQuiz(sm.title, () => {
@@ -3973,7 +4018,7 @@
         player.jobHours = 40;
         player.salary = ns.salary;
         player.yearsWorked = 0;
-        addLog(`🕵️ **PROFESI KHUSUS NEGATIF:** Kamu mulai menjalani **${ns.icon} ${ns.title}** (+Rp ${ns.salary} Jt/thn). Peluang tertangkap RNG sangat rendah, namun sekali kena hukum vonisnya **1–5 tahun**!`, "anomaly");
+        addLog(`🕵️ **PROFESI KHUSUS NEGATIF:** Kamu mulai menjalani **${ns.icon} ${ns.title}** (+Rp ${ns.salary} Jt/thn). Peluang tertangkap sangat rendah, namun sekali kena hukum vonisnya **1–5 tahun**!`, "anomaly");
         showToast(`Mulai ${ns.title}!`);
         renderKarirSheet("informal_resilient");
     }
@@ -6613,6 +6658,23 @@
     function updateUI() {
         if (!player) return;
 
+        const navNormal = document.getElementById("bottomNavNormal");
+        const navJail = document.getElementById("bottomNavJail");
+        const kaburTopBtn = document.getElementById("btnKaburHeader");
+        if (player.inJail) {
+            if (navNormal) navNormal.classList.add("hidden");
+            if (navJail) navJail.classList.remove("hidden");
+            if (kaburTopBtn) kaburTopBtn.classList.add("hidden");
+            const sheetEl = document.getElementById("sheetModal");
+            if (sheetEl && !sheetEl.classList.contains("hidden")) {
+                sheetEl.classList.add("hidden");
+            }
+        } else {
+            if (navNormal) navNormal.classList.remove("hidden");
+            if (navJail) navJail.classList.add("hidden");
+            if (kaburTopBtn) kaburTopBtn.classList.remove("hidden");
+        }
+
         const phaseEl = document.getElementById("headerPhaseText");
         if (phaseEl) phaseEl.textContent = getLifePhaseLabel();
         const genStarEl = document.getElementById("blGenStar");
@@ -6790,6 +6852,7 @@
         // 1. Jika masih sekolah SD/SMP/SMA -> Dikeluarkan (Drop Out) & KIP Dicabut
         if (player.currentSchool) {
             const oldSchool = player.currentSchool.name;
+            markCurrentSchoolExpelled();
             player.currentSchool = null;
             penalties.push(`dikeluarkan (DO) dari **${oldSchool}**`);
         }
@@ -6850,6 +6913,12 @@
     // 6. CORE LOOP: +1 TAHUN, PPDB SEKOLAH (SD/SMP/SMU) & AUDIT PAJAK CORETAX
     // =========================================================================
     function openSchoolEnrollmentDialog(levelKey, levelTitle) {
+        const eduBlock = getEducationBlockReason();
+        if (eduBlock) {
+            addLog(`🚫 **DITOLAK PPDB (${levelTitle}):** ${eduBlock}`, "danger");
+            showToast("Tidak bisa lanjut sekolah karena riwayat dikeluarkan!");
+            return;
+        }
         if (hasCriminalRecord()) {
             addLog(`🚫 **DITOLAK SELURUH SEKOLAH (${levelTitle}):** Karena memiliki catatan pernah dipenjara dalam riwayat hidupmu, seluruh sekolah menolak pendaftaranmu!`, "danger");
             showToast("Ditolak semua sekolah karena catatan penjara!");
@@ -7161,6 +7230,7 @@
                 (sc) => {
                     player.schoolFailStreak = (player.schoolFailStreak || 0) + 1;
                     if (player.schoolFailStreak >= 2) {
+                        player.expelledStage = "sd";
                         player.currentSchool = null;
                         player.schoolRepeatStage = null;
                         player.droppedOut = true;
@@ -7189,6 +7259,7 @@
                 (sc) => {
                     player.schoolFailStreak = (player.schoolFailStreak || 0) + 1;
                     if (player.schoolFailStreak >= 2) {
+                        player.expelledStage = "smp";
                         player.currentSchool = null;
                         player.schoolRepeatStage = null;
                         player.droppedOut = true;
@@ -7221,6 +7292,7 @@
                 (sc) => {
                     player.schoolFailStreak = (player.schoolFailStreak || 0) + 1;
                     if (player.schoolFailStreak >= 2) {
+                        player.expelledStage = "sma";
                         player.currentSchool = null;
                         player.schoolRepeatStage = null;
                         player.droppedOut = true;
@@ -7508,6 +7580,10 @@
     }
 
     function openSubFeature(hubOrigin, fnName, arg, customTitle = "", customSub = "", customIcon = "") {
+        if (player && player.inJail) {
+            showToast(`🔒 Sedang ditahan! Semua aktivitas dikunci — hanya bisa +Age atau Surrender.`);
+            return;
+        }
         activeBitlifeHub = hubOrigin;
         const tabsEl = document.getElementById("sheetTabs");
         const bodyEl = document.getElementById("sheetBody");
@@ -7587,6 +7663,10 @@
 
     function openBitlifeSystemMenu() {
         if (!player) return;
+        if (player.inJail) {
+            surrenderInJail();
+            return;
+        }
         activeBitlifeHub = "";
         const modal = document.getElementById("sheetModal");
         modal.classList.remove("hidden");
@@ -7894,8 +7974,41 @@
         `;
     }
 
+    function surrenderInJail() {
+        if (!player || !player.alive || !player.inJail) return;
+        showPopupEvent(
+            "🏳️",
+            "Surrender / Menyerah di Dalam Tahanan",
+            `Kamu sedang menjalani masa tahanan di Lapas +62 (sisa hukuman <b>${player.jailYears} tahun</b>).<br><br>Jika kamu memilih <b>Surrender (Menyerah)</b>, perjalanan hidup <b>${player.name}</b> akan langsung berakhir di balik jeruji besi dan masuk ke tahap pewarisan / hidup baru.`,
+            [
+                {
+                    text: "🏳️ Ya, Surrender & Akhiri Hidup Ini",
+                    fn: () => {
+                        player.alive = false;
+                        player.stats.health = 0;
+                        player.stats.happy = 0;
+                        addLog(`🏳️ **SURRENDER DI TAHANAN:** Tidak sanggup lagi menjalani masa kurungan di Lapas +62 (sisa ${player.jailYears} tahun), **${player.name}** menyerah dan mengakhiri perjalanan hidupnya di usia ${player.age} tahun.`, "danger");
+                        updateUI();
+                        showEndGameModal("🏳️ Surrender di Tahanan", `${player.name} memilih menyerah (Surrender) saat menjalani masa hukuman di Lapas +62 pada usia ${player.age} tahun.`, "🏳️");
+                    }
+                },
+                {
+                    text: "⛓️ Batal (Lanjutkan Jalani Masa Tahanan)",
+                    fn: () => {
+                        showToast("Tetap bertahan menjalani masa hukuman.");
+                    }
+                }
+            ],
+            "⛓️ STATUS TAHANAN LAPAS +62"
+        );
+    }
+
     function openModal(type) {
         if (!player || !player.alive) return;
+        if (player.inJail) {
+            showToast(`🔒 Sedang ditahan (${player.jailYears} thn lagi)! Semua aktivitas dikunci — hanya bisa +Age atau Surrender.`);
+            return;
+        }
         currentModalType = type;
         const modal = document.getElementById("sheetModal");
         modal.classList.remove("hidden");
@@ -8039,6 +8152,7 @@
             smHead.innerHTML = `<div class="item-title">📲 Pekerjaan Melalui Media Sosial</div>`;
             bodyEl.appendChild(smHead);
 
+            const hasAnySmJob = (player.socialMediaJobs || []).length > 0;
             SOCIAL_MEDIA_JOBS.forEach((sm, idx) => {
                 const isActive = (player.socialMediaJobs || []).some(x => x.id === sm.id);
                 const card = document.createElement("div");
@@ -8046,10 +8160,12 @@
                 if (isActive) card.style.borderColor = "#16a34a";
                 card.innerHTML = `
                     <div class="item-title">${sm.icon} ${sm.title} (+Rp ${sm.salary} Jt/thn)</div>
-                    <div class="item-desc">${sm.desc}<br><b>Syarat:</b> Usia ≥${sm.minAge} Thn • Sosial ≥${sm.reqSocial}% ${sm.reqLooks > 0 ? `• Looks ≥${sm.reqLooks}%` : ''}</div>
+                    <div class="item-desc">${sm.desc}<br><b>Syarat:</b> Usia ≥${sm.minAge} Thn • Sosial ≥${sm.reqSocial}% ${sm.reqLooks > 0 ? `• Looks ≥${sm.reqLooks}%` : ''} • <i>(Maks. 1 pilihan aktif)</i></div>
                     ${isActive
                         ? `<button class="btn-action btn-rose" onclick="quitSocialMediaJob('${sm.id}')">🛑 Berhenti dari ${sm.title}</button>`
-                        : `<button class="btn-action btn-primary" onclick="takeSocialMediaJob(${idx})">📱 Mulai Karir Medsos Ini</button>`}
+                        : (hasAnySmJob
+                            ? `<button class="btn-action btn-dark" onclick="takeSocialMediaJob(${idx})">🔒 Sudah Memilih 1 Profesi Medsos</button>`
+                            : `<button class="btn-action btn-primary" onclick="takeSocialMediaJob(${idx})">📱 Pilih Karir Medsos Ini</button>`)}
                 `;
                 bodyEl.appendChild(card);
             });
@@ -8079,7 +8195,7 @@
             const negHead = document.createElement("div");
             negHead.className = "item-card";
             negHead.style.borderColor = "#dc2626";
-            negHead.innerHTML = `<div class="item-title" style="color:#b91c1c;">🕵️ Profesi Khusus Negatif (Risiko Tertangkap RNG Rendah • Vonis 1–5 Thn)</div>`;
+            negHead.innerHTML = `<div class="item-title" style="color:#b91c1c;">🕵️ Profesi Khusus Negatif (Risiko Tertangkap Rendah • Vonis 1–5 Thn)</div>`;
             bodyEl.appendChild(negHead);
 
             NEGATIVE_SPECIAL_JOBS.forEach((ns, idx) => {
@@ -8516,6 +8632,12 @@
 
         // TAB 2: UNIVERSITAS & RIWAYAT SEKOLAH KOTA
         if (tab === "kuliah") {
+            const eduBlock = getEducationBlockReason();
+            if (eduBlock) {
+                const schHist = (player.schoolHistory || []).length > 0 ? player.schoolHistory.join(" ➔ ") : "Belum tercatat";
+                bodyEl.innerHTML = `<div class="item-card" style="border-color:#dc2626; background:#fef2f2;"><div class="item-title" style="color:#b91c1c;">🚫 Pendaftaran Pendidikan & Kuliah Ditutup</div><div class="item-desc">${eduBlock}<br><br>Riwayat Sekolah: <b>${schHist}</b></div></div>`;
+                return;
+            }
             if (hasCriminalRecord()) {
                 const recList = (player.jailRecords || []).map(r => `Usia ${r.age} Thn: ${r.crime}`).join(" • ") || "Tercatat pernah dipenjara";
                 bodyEl.innerHTML = `<div class="item-card" style="border-color:#dc2626; background:#fef2f2;"><div class="item-title" style="color:#b91c1c;">🚫 Ditolak Seluruh Lembaga Pendidikan (Catatan Penjara)</div><div class="item-desc">Karena catatan pernah dipenjara tercatat dalam riwayat hidupmu (<b>${recList}</b>), seluruh sekolah dan universitas menolak pendaftaran pendidikanmu.</div></div>`;
@@ -8903,6 +9025,12 @@
     }
 
     function enrollCityUniversity(uniIdx, nextLevel = 1, dur = 4, specCost = 5, reqEdu = 60) {
+        const eduBlock = getEducationBlockReason();
+        if (eduBlock) {
+            addLog(`🚫 **DITOLAK UNIVERSITAS:** ${eduBlock}`, "danger");
+            showToast("Ditolak kuliah! Syarat kelulusan sekolah tidak terpenuhi.");
+            return;
+        }
         if (hasCriminalRecord()) {
             addLog(`🚫 **DITOLAK UNIVERSITAS:** Pendaftaran kuliah ditolak karena catatan kriminal/penjara tercatat permanen dalam riwayat hidupmu!`, "danger");
             showToast("Ditolak kuliah! Catatan penjara tercatat permanen.");
@@ -9542,7 +9670,7 @@
         rngNotice.style.background = "#090d16";
         rngNotice.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:11px; font-weight:900; color:#fbbf24;">🎲 MODE REALITA acak (TANPA BOCORAN ANGKA)</span>
+                <span style="font-size:11px; font-weight:900; color:#fbbf24;">🎲 MODE REALITA ACAK</span>
                 <span style="font-size:10px; color:#9ca3af; font-weight:800;">Aksi Tahun Ini: ${player.actionsThisYear}/5</span>
             </div>
             <div class="item-desc">Hasil setiap kegiatan pengembangan diri ditentukan <b>acak</b> (bisa sangat efektif, biasa saja, atau justru gagal/burnout/cedera) tanpa menampilkan angka mutlak. Perhatikan perubahan alami pada bar parameter di bawah layar!</div>
@@ -10294,7 +10422,7 @@
                     <button class="btn-action btn-gold" onclick="openGiftModal('partner', 0)">🎁 Beri Hadiah Romantis<br><span style="font-size:9px; font-weight:600;">Pilih Murah s/d Sultan</span></button>
                     <button class="btn-action btn-pink" onclick="partnerQualityActivity('date')">🍽️ Quality Time & Kencan<br><span style="font-size:9px; font-weight:600;">Rp 1 Jt • Hasil acak</span></button>
                     <button class="btn-action btn-primary" onclick="partnerQualityActivity('glowup')">✨ Belikan Skincare & Gym<br><span style="font-size:9px; font-weight:600;">Rp 4 Jt • Upgrade Pasangan</span></button>
-                    <button class="btn-action btn-emerald" style="grid-column: span 2;" onclick="partnerQualityActivity('baby')">👶 Program Hamil / Intim (Peluang Punya Anak RNG)</button>
+                    <button class="btn-action btn-emerald" style="grid-column: span 2;" onclick="partnerQualityActivity('baby')">👶 Program Hamil / Intim</button>
                 </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px;">
                     ${p.status !== "Menikah" ? `<button class="btn-action btn-gold" data-testid="relationship-action-marry-button" onclick="marryCurrentPartner()">💍 Ajukan Pernikahan Bersama (Rp 25 Jt)</button>` : `<button class="btn-action btn-dark" onclick="partnerQualityActivity('honeymoon')">✈️ Liburan Romantis (Rp 15 Jt)</button>`}
@@ -10552,7 +10680,7 @@
                     ${renderRelBarHtml(exIl.rel, "Hubungan Ex-Mertua")}
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:4px;">
                         <button class="btn-action btn-emerald" onclick="openTransferMoneyModal('exinlaws', ${idx})">💸 Kasih Uang Silaturahmi</button>
-                        <button class="btn-action btn-gold" onclick="openGiftModal('exinlaws', ${idx})">🎁 Kirim Bingkisan (RNG)</button>
+                        <button class="btn-action btn-gold" onclick="openGiftModal('exinlaws', ${idx})">🎁 Kirim Bingkisan</button>
                     </div>
                 `;
                 bodyEl.appendChild(card);
@@ -11095,7 +11223,7 @@
                         }
                     },
                     {
-                        text: `💬 Ajak ${p.name} Pindah ke ${myRel.icon} ${myRel.name} & Menikah di Dalam Negeri (Rp 25 Jt • RNG)`,
+                        text: `💬 Ajak ${p.name} Pindah ke ${myRel.icon} ${myRel.name} & Menikah di Dalam Negeri (Rp 25 Jt)`,
                         fn: () => {
                             if (p.rel >= 75 && Math.random() < 0.65) {
                                 p.religion = myRel;
@@ -11643,7 +11771,7 @@
                 <div class="item-title">⛓️ Status: Warga Binaan Lapas +62 (Sisa ${player.jailYears} Tahun)</div>
                 <div class="item-desc">Kamu sedang mendekam di balik jeruji besi. Di Negeri +62, selalu ada anomali hukum bila kamu punya koneksi Ordal atau saldo tebal!</div>
                 <div style="display:flex; flex-direction:column; gap:6px; margin-top:4px;">
-                    <button class="btn-action btn-emerald" onclick="jailAnomalyAction('sopan')">🙏 Bersikap Sangat Sopan di Sidang PK (Gratis • Diskon Hukuman RNG)</button>
+                    <button class="btn-action btn-emerald" onclick="jailAnomalyAction('sopan')">🙏 Bersikap Sangat Sopan di Sidang PK (Gratis)</button>
                     <button class="btn-action btn-gold" onclick="jailAnomalyAction('ordal')">📞 Telepon "Orang Dalam" & Pengacara Kondang (Rp 150 Jt • Bebas Murni)</button>
                     <button class="btn-action btn-primary" onclick="jailAnomalyAction('vip')">🛋️ Sewa Sel Mewah Fasilitas AC & Wifi (Rp 250 Jt • Bebas Stres di Lapas)</button>
                     <button class="btn-action btn-pink" onclick="jailAnomalyAction('grasi')">📜 Ajukan Grasi / Amnesti Presiden (Sosial ≥85% + Rp 80 Jt • Bebas & Pulihkan Nama)</button>
