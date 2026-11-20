@@ -3152,6 +3152,10 @@
         renderGradExamQuestion();
     }
 
+    function isEnrolledInSchool() {
+        return !!(player && player.currentSchool && !player.droppedOut && !player.expelledStage);
+    }
+
     function markCurrentSchoolExpelled() {
         if (!player) return;
         player.droppedOut = true;
@@ -3211,6 +3215,7 @@
                 if (player.kipActive && !player.kipRevoked) {
                     player.kipRevoked = true;
                     player.kipActive = false;
+                    player.kipRevokedReason = "cheat";
                 }
                 modifyStats({ happy: -18, edu: -10, social: -8 });
                 addLog(`🚨 **KETAHUAN MENCONTEK & DIKELUARKAN DARI ${oldSch.toUpperCase()}:** Guru pengawas memergokimu mencontek saat ujian kelulusan! Kamu langsung dikeluarkan dari sekolah.`, "danger");
@@ -6919,8 +6924,11 @@
         `;
         if (player.age >= 6 && player.age <= 17) {
             if (player.kipRevoked) {
-                bHtml += `<span class="mini-badge" style="color:#b91c1c; border-color:#ef4444; background:#fee2e2;">🚫 KIP Dicabut (Tawuran)</span>`;
-            } else if (player.kipActive) {
+                const kipBadgeLbl = !isEnrolledInSchool()
+                    ? (player.kipRevokedReason === "cheat" ? "🚫 KIP Dicabut (Dikeluarkan • Mencontek)" : "⏸️ KIP Distop (Putus Sekolah)")
+                    : "🚫 KIP Dicabut";
+                bHtml += `<span class="mini-badge" style="color:#b91c1c; border-color:#ef4444; background:#fee2e2;">${kipBadgeLbl}</span>`;
+            } else if (player.kipActive && isEnrolledInSchool()) {
                 bHtml += `<span class="mini-badge" style="color:#15803d; border-color:#10b981; background:#dcfce7;">💳 Penerima KIP Aktif</span>`;
             }
         }
@@ -7038,7 +7046,8 @@
         if (player.kipActive && !player.kipRevoked) {
             player.kipRevoked = true;
             player.kipActive = false;
-            penalties.push(`hak **Kartu Indonesia Pintar (KIP)** dicabut permanen`);
+            player.kipRevokedReason = "expelled_non_cheat";
+            penalties.push(`bantuan **Kartu Indonesia Pintar (KIP)** dihentikan karena tidak lagi bersekolah`);
         }
 
         // 2. Jika sedang kuliah -> Drop Out (DO) dari Universitas
@@ -7413,6 +7422,11 @@
                         player.currentSchool = null;
                         player.schoolRepeatStage = null;
                         player.droppedOut = true;
+                        if (player.kipActive && !player.kipRevoked) {
+                            player.kipRevoked = true;
+                            player.kipActive = false;
+                            player.kipRevokedReason = "expelled_non_cheat";
+                        }
                         modifyStats({ happy: -15, edu: -10 });
                         addLog(`🚫 **PUTUS SEKOLAH / DO SD (${sc}/10):** Kamu gagal Ujian Kelulusan SD **2 tahun berturut-turut** dan resmi dinyatakan **Putus Sekolah (DO)**!`, "danger");
                         showToast("🚫 Putus Sekolah (DO SD)!");
@@ -7442,6 +7456,11 @@
                         player.currentSchool = null;
                         player.schoolRepeatStage = null;
                         player.droppedOut = true;
+                        if (player.kipActive && !player.kipRevoked) {
+                            player.kipRevoked = true;
+                            player.kipActive = false;
+                            player.kipRevokedReason = "expelled_non_cheat";
+                        }
                         modifyStats({ happy: -15, edu: -10 });
                         addLog(`🚫 **PUTUS SEKOLAH / DO SMP (${sc}/10):** Kamu gagal Ujian Kelulusan SMP **2 tahun berturut-turut** dan resmi **Putus Sekolah (DO)**!`, "danger");
                         showToast("🚫 Putus Sekolah (DO SMP)!");
@@ -7475,6 +7494,11 @@
                         player.currentSchool = null;
                         player.schoolRepeatStage = null;
                         player.droppedOut = true;
+                        if (player.kipActive && !player.kipRevoked) {
+                            player.kipRevoked = true;
+                            player.kipActive = false;
+                            player.kipRevokedReason = "expelled_non_cheat";
+                        }
                         modifyStats({ happy: -15, edu: -10 });
                         addLog(`🚫 **PUTUS SEKOLAH / DO SMA (${sc}/10):** Kamu gagal Ujian Kelulusan SMA **2 tahun berturut-turut** dan resmi **Putus Sekolah (DO)**!`, "danger");
                         showToast("🚫 Putus Sekolah (DO SMA)!");
@@ -7603,17 +7627,24 @@
 
         // Pencairan Dana PIP / Kartu Indonesia Pintar (KIP) untuk Pemain saat usia SD-SMU (6-17 tahun)
         if (player.age >= 6 && player.age <= 17) {
-            if (!player.kipRevoked && (player.kipActive || isParentEligibleForKip())) {
+            if (!isEnrolledInSchool()) {
+                // Sudah dikeluarkan / putus sekolah -> KIP otomatis distop dan TIDAK dikenakan biaya SPP sekolah
+                if (player.kipActive) {
+                    player.kipActive = false;
+                    player.kipRevoked = true;
+                    if (!player.kipRevokedReason) player.kipRevokedReason = "expelled_non_cheat";
+                }
+            } else if (!player.kipRevoked && (player.kipActive || isParentEligibleForKip())) {
                 player.kipActive = true;
                 const kipData = getKipBenefitByAge(player.age);
                 if (kipData) {
                     player.money = roundMoney(player.money + kipData.aid);
                     addLog(`💳 **CAIR DANA PIP/KIP (${kipData.level}):** Sekolah bebas SPP + cair dana bantuan pendidikan KIP **+${formatShortJuta(kipData.aid)}**.`, "school");
                 }
-            } else if (player.kipRevoked) {
+            } else if (player.kipRevoked && isEnrolledInSchool()) {
                 const dendaSpp = 1.2;
                 player.money = roundMoney(player.money - dendaSpp);
-                addLog(`🚫 **DAMPAK KIP DICABUT:** Karena KIP milikmu telah dicabut akibat tawuran, kamu harus membayar SPP mandiri **-${formatShortJuta(dendaSpp)}**!`, "danger");
+                addLog(`🚫 **DAMPAK KIP DICABUT:** Karena KIP milikmu telah dicabut saat masih bersekolah, kamu harus membayar SPP mandiri **-${formatShortJuta(dendaSpp)}**!`, "danger");
             }
         }
 
@@ -9868,16 +9899,26 @@
         if (tab === "sekolah") {
             const kipBanner = document.createElement("div");
             kipBanner.className = "item-card";
-            kipBanner.style.borderColor = player.kipRevoked ? "#ef4444" : (player.kipActive ? "#10b981" : "#374151");
+            kipBanner.style.borderColor = player.kipRevoked ? "#ef4444" : (player.kipActive && isEnrolledInSchool() ? "#10b981" : "#374151");
+            const kipTitleTxt = player.kipRevoked
+                ? (!isEnrolledInSchool()
+                    ? (player.kipRevokedReason === "cheat" ? '🚫 Status KIP: DICABUT (Dikeluarkan karena Mencontek)' : '⏸️ Status KIP: DISTOP (Dikeluarkan / Tidak Bersekolah)')
+                    : '🚫 Status KIP: DICABUT PERMANEN')
+                : (player.kipActive && isEnrolledInSchool()
+                    ? '💳 Status KIP: PENERIMA AKTIF (SD - SMA/SMK)'
+                    : (!isEnrolledInSchool() ? '🚫 Status Pendidikan: Dikeluarkan / Tidak Bersekolah' : '🏫 Status Sekolah: Reguler Non-KIP'));
+            const kipDescTxt = player.kipRevoked
+                ? (!isEnrolledInSchool()
+                    ? 'Karena kamu sudah dikeluarkan dan tidak lagi bersekolah, pencairan dana KIP otomatis dihentikan dan kamu <b>tidak dikenakan biaya SPP sekolah</b>.'
+                    : 'Hak Kartu Indonesia Pintar (KIP) milikmu telah dicabut. Dana PIP dihentikan dan kamu wajib membayar SPP mandiri selama bersekolah.')
+                : (player.kipActive && isEnrolledInSchool()
+                    ? 'Karena berasal dari keluarga prasejahtera/tanpa pekerjaan tetap, kamu mendapat fasilitas sekolah gratis (SD–SMU) + pencairan dana PIP tahunan.'
+                    : (!isEnrolledInSchool()
+                        ? 'Kamu sudah dikeluarkan dari sekolah sehingga seluruh kegiatan belajar maupun fasilitas sekolah tidak lagi aktif.'
+                        : 'Orang tuamu mampu membiayai sekolah secara reguler tanpa Kartu Indonesia Pintar (KIP).'));
             kipBanner.innerHTML = `
-                <div class="item-title">${player.kipRevoked ? '🚫 Status KIP: DICABUT PERMANEN (Terbukti Tawuran)' : (player.kipActive ? '💳 Status KIP: PENERIMA AKTIF (SD - SMA/SMK)' : '🏫 Status Sekolah: Reguler Non-KIP')}</div>
-                <div class="item-desc">
-                    ${player.kipRevoked
-                        ? 'Hak Kartu Indonesia Pintar (KIP) milikmu telah dicabut oleh Dinas Pendidikan karena terlibat tawuran pelajar. Dana PIP dihentikan dan kamu wajib membayar SPP mandiri.'
-                        : (player.kipActive
-                            ? 'Karena berasal dari keluarga prasejahtera/tanpa pekerjaan tetap, kamu mendapat fasilitas sekolah gratis (SD–SMU) + pencairan dana PIP tahunan. <b>Jangan pernah ikut tawuran atau KIP akan langsung dicabut!</b>'
-                            : 'Orang tuamu mampu membiayai sekolah secara reguler tanpa Kartu Indonesia Pintar (KIP).')}
-                </div>
+                <div class="item-title">${kipTitleTxt}</div>
+                <div class="item-desc">${kipDescTxt}</div>
             `;
             bodyEl.appendChild(kipBanner);
 
@@ -9886,6 +9927,7 @@
                     icon: "📖",
                     title: "Belajar Mandiri di Perpustakaan Sekolah",
                     cost: 0,
+                    requiresSchool: true,
                     desc: "Gratis (Usia 6-17 Thn) • Membaca buku pelajaran dan merangkum materi ujian. Hasil pemahaman maupun tingkat kejenuhan bergantung pada kondisi pikiranmu.",
                     minAge: 6, maxAge: 17,
                     outcomes: [
@@ -9910,6 +9952,7 @@
                     icon: "🏀",
                     title: "Aktif Organisasi OSIS & Ekskul Olahraga",
                     cost: 0.5,
+                    requiresSchool: true,
                     desc: "Biaya Rp 500 Rb (Usia 6-17 Thn) • Melatih kebugaran fisik sekaligus memperluas pergaulan di sekolah.",
                     minAge: 6, maxAge: 17,
                     outcomes: [
@@ -9934,6 +9977,7 @@
                     icon: "⚔️",
                     title: "Nongkrong Bareng Basis & Ikut Tawuran Pelajar",
                     cost: 0,
+                    requiresSchool: true,
                     desc: "Gratis (Usia 12-17 Thn) • Aksi nekat di jalanan yang berisiko terluka parah dan ⚠️ OTOMATIS MENCABUT HAK KIP!",
                     minAge: 12, maxAge: 17,
                     isTawuran: true,
@@ -12443,7 +12487,7 @@
     }
 
     function renderUpgradeCards(acts, container) {
-        acts.forEach(a => {
+        acts.filter(a => !a.requiresSchool || isEnrolledInSchool()).forEach(a => {
             const card = document.createElement("div");
             card.className = "item-card";
             const inAge = player.age >= a.minAge && player.age <= a.maxAge;
@@ -13226,8 +13270,10 @@
             const kidsEvents = [
                 {
                     emoji: "🍡",
-                    title: "Godaan Jajanan Depan SD, Bekal Rumah & Menu MBG",
-                    desc: "Bel istirahat berbunyi! Di luar pagar SD, abang gerobak cilok dan es warna-warni dikerubungi teman-temanmu, sementara di kelas juga tersedia pembagian makan siang.",
+                    title: isEnrolledInSchool() ? "Godaan Jajanan Depan SD, Bekal Rumah & Menu MBG" : "Godaan Jajanan Abang Cilok Keliling Gang",
+                    desc: isEnrolledInSchool()
+                        ? "Bel istirahat berbunyi! Di luar pagar SD, abang gerobak cilok dan es warna-warni dikerubungi teman-temanmu, sementara di kelas juga tersedia pembagian makan siang."
+                        : "Sore hari di depan rumah, abang gerobak cilok dan es warna-warni lewat membunyikan bel keliling komplek.",
                     choices: [
                         {
                             text: "🍡 Ikut Jajan Cilok Bareng Teman-Teman",
@@ -13248,7 +13294,7 @@
                                 addLog("🍱 Kamu menyantap bekal yang dibawa dari rumah di dalam kelas dengan tenang dan higienis.", "school");
                             }
                         },
-                        {
+                        ...(isEnrolledInSchool() ? [{
                             text: "🍛 Makan Menu MBG (Makan Bergizi Gratis) di Sekolah",
                             fn: () => {
                                 if (Math.random() < 0.65) {
@@ -13259,7 +13305,7 @@
                                     addLog("🤢 **MENU MBG KURANG BAIK:** Sayang sekali, lauk katering MBG di sekolah hari itu kurang segar/agak basi sehingga membuat perutmu sakit!", "danger");
                                 }
                             }
-                        }
+                        }] : [])
                     ]
                 },
                 {
@@ -13320,8 +13366,36 @@
             return;
         }
 
-        // USIA REMAJA SMP / SMA (13 - 17 TAHUN: SKEMA KIP & TAWURAN PELAJAR)
+        // USIA REMAJA SMP / SMA (13 - 17 TAHUN: SKEMA KIP & TAWURAN PELAJAR — HANYA JIKA MASIH BERSEKOLAH)
         if (player.age >= 13 && player.age <= 17) {
+            if (!isEnrolledInSchool()) {
+                const nonSchoolTeenEvents = [
+                    {
+                        emoji: "🛵",
+                        title: "Nongkrong di Warung Kopi Komplek Malam Hari",
+                        desc: "Karena sudah tidak lagi bersekolah, waktumu banyak dihabiskan bersama anak-anak tongkrongan sekitar rumah.",
+                        choices: [
+                            {
+                                text: "☕ Ngobrol Santai & Bantu Jaga Warung Tetangga",
+                                fn: () => {
+                                    modifyStats({ social: randInt(2, 6), happy: randInt(2, 5) });
+                                    addLog("☕ Kamu menghabiskan waktu sore dengan membantu tetangga di warung kopi komplek.", "normal");
+                                }
+                            },
+                            {
+                                text: "🏠 Pulang Cepat & Istirahat di Rumah",
+                                fn: () => {
+                                    modifyStats({ health: randInt(2, 5), happy: randInt(1, 4) });
+                                    addLog("🏠 Kamu memilih pulang lebih awal dan beristirahat di rumah.", "normal");
+                                }
+                            }
+                        ]
+                    }
+                ];
+                const evOut = pickRandom(nonSchoolTeenEvents);
+                showPopupEvent(evOut.emoji, evOut.title, evOut.desc, evOut.choices, "🧑 MASA REMAJA +62");
+                return;
+            }
             const teenEvents = [
                 {
                     emoji: "⚔️",
