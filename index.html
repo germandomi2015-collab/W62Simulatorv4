@@ -4901,6 +4901,417 @@
     ];
 
     // Daftar Aset dengan Kategori Pajak (Vehicle: PKB 2% + Progresif, Property: PBB 0.2% + PPh Sewa Final 10%, Business: PPh Final UMKM 0.5%)
+    // =========================================================================
+    // SISTEM BIAYA HIDUP REALISTIS, GAYA HIDUP, SEKOLAH ANAK & KPR 5 BANK
+    // =========================================================================
+    const LIFESTYLE_TIERS = [
+        {
+            id: "hemat",
+            icon: "🍜",
+            name: "Mode Hemat (Anak Kos Akhir Bulan)",
+            mult: 0.70,
+            happyDelta: -2,
+            healthDelta: -2,
+            looksDelta: 0,
+            socialDelta: -1,
+            desc: "Biaya hidup 0.7x (super irit, sering mie instan & jarang nongkrong). Kesehatan -2%/thn, Bahagia -2%/thn."
+        },
+        {
+            id: "standar",
+            icon: "🍛",
+            name: "Mode Standar Warga +62",
+            mult: 1.00,
+            happyDelta: 0,
+            healthDelta: 0,
+            looksDelta: 0,
+            socialDelta: 0,
+            desc: "Biaya hidup 1.0x sesuai standar biaya kota domisili. Kondisi fisik & mental stabil."
+        },
+        {
+            id: "menengah",
+            icon: "☕",
+            name: "Mode Kelas Menengah (Nongkrong & Skincare)",
+            mult: 1.60,
+            happyDelta: 3,
+            healthDelta: 0,
+            looksDelta: 1,
+            socialDelta: 2,
+            desc: "Biaya hidup 1.6x (rutin ngopi, hiburan & perawatan diri). Bahagia +3%, Sosial +2%, Looks +1%/thn."
+        },
+        {
+            id: "hedon",
+            icon: "🥂",
+            name: "Mode Hedon / Sultan Sosialita",
+            mult: 2.80,
+            happyDelta: 6,
+            healthDelta: 2,
+            looksDelta: 4,
+            socialDelta: 5,
+            desc: "Biaya hidup 2.8x (makan mewah, gym VIP, liburan & gaya sultan). Bahagia +6%, Sosial +5%, Looks +4%, Sehat +2%/thn."
+        }
+    ];
+
+    const KPR_BANKS = [
+        {
+            id: "btn",
+            icon: "🏛️",
+            name: "Bank BTN (Spesialis KPR & Subsidi)",
+            dpPct: 0.15,
+            tenor: 15,
+            rateSubsidi: 0.05,
+            rateCommercial: 0.085,
+            minSocial: 0,
+            desc: "DP 15% • Tenor 15 Thn • Bunga 5,0%/thn (Rumah Subsidi) atau 8,5%/thn (Non-Subsidi)."
+        },
+        {
+            id: "mandiri",
+            icon: "🏦",
+            name: "Bank Mandiri (KPR Griya)",
+            dpPct: 0.20,
+            tenor: 15,
+            rateSubsidi: 0.05,
+            rateCommercial: 0.0825,
+            minSocial: 15,
+            desc: "DP 20% • Tenor 15 Thn • Bunga 8,25%/thn • Syarat kerja/usaha aktif."
+        },
+        {
+            id: "bca",
+            icon: "🔵",
+            name: "Bank BCA (KPR Fix & Cap)",
+            dpPct: 0.20,
+            tenor: 12,
+            rateSubsidi: 0.05,
+            rateCommercial: 0.075,
+            minSocial: 35,
+            desc: "DP 20% • Tenor 12 Thn • Bunga rendah 7,50%/thn • Syarat Sosial/Kredit ≥35%."
+        },
+        {
+            id: "bni",
+            icon: "🟠",
+            name: "Bank BNI (BNI Griya)",
+            dpPct: 0.15,
+            tenor: 15,
+            rateSubsidi: 0.05,
+            rateCommercial: 0.0875,
+            minSocial: 10,
+            desc: "DP 15% • Tenor 15 Thn • Bunga 8,75%/thn • Proses cepat karyawan & wirausaha."
+        },
+        {
+            id: "bsi",
+            icon: "🟢",
+            name: "Bank Syariah Indonesia / BSI (KPR Hasanah)",
+            dpPct: 0.20,
+            tenor: 15,
+            rateSubsidi: 0.05,
+            rateCommercial: 0.08,
+            minSocial: 10,
+            desc: "DP 20% • Tenor 15 Thn • Margin tetap syariah 8,0%/thn • Bebas penalti pelunasan cepat."
+        }
+    ];
+
+    function getLifestyleTierObj() {
+        const id = (player && player.lifestyle) ? player.lifestyle : "standar";
+        return LIFESTYLE_TIERS.find(t => t.id === id) || LIFESTYLE_TIERS[1];
+    }
+
+    function setPlayerLifestyle(tierId) {
+        if (!player) return;
+        const found = LIFESTYLE_TIERS.find(t => t.id === tierId);
+        if (!found) return;
+        player.lifestyle = found.id;
+        addLog(`💳 **GAYA HIDUP DIUBAH:** Kamu mengatur standar biaya hidup menjadi **${found.icon} ${found.name}** (${found.mult}x).`, "normal");
+        showToast(`Gaya hidup: ${found.name}`);
+        if (currentModalType === "karir") renderKarirSheet("pajak");
+        else if (currentModalType === "upgrade") renderUpgradeSheet(currentSubTab || "kerja");
+        updateUI();
+    }
+
+    function toggleChildSchoolTier(childIdx) {
+        if (!player || !player.children || !player.children[childIdx]) return;
+        const ch = player.children[childIdx];
+        if (ch.age < 6 || ch.age > 17) {
+            showToast("Pilihan sekolah hanya berlaku saat anak berusia 6–17 tahun (SD/SMP/SMA)!");
+            return;
+        }
+        ch.schoolTier = ch.schoolTier === "swasta" ? "negeri" : "swasta";
+        const tierLabel = ch.schoolTier === "swasta" ? "🏫 Swasta Favorit (SPP lebih tinggi • +Edu anak tiap tahun)" : "🏫 Negeri / Standar";
+        addLog(`🎒 **SEKOLAH ANAK (${ch.name}):** Kamu memindahkan sekolah **${ch.name}** ke jalur **${tierLabel}**.`, "school");
+        showToast(`${ch.name}: ${ch.schoolTier === "swasta" ? "Swasta Favorit" : "Negeri/Standar"}`);
+        renderKeluargaSheet("anak");
+        updateUI();
+    }
+
+    function hasOwnedResidentialProperty() {
+        if (!player || !Array.isArray(player.assets)) return false;
+        return player.assets.some(a => a.id === "subsidi" || a.id === "pondokindah" || a.category === "property");
+    }
+
+    function calculateDetailedLivingAndKprSummary() {
+        if (!player) {
+            return {
+                housingCost: 0, housingLabel: "-", foodAndDailyCost: 0, utilityCost: 0,
+                transportCost: 0, spouseCost: 0, childrenTotalCost: 0, childrenBreakdown: [],
+                kprAnnualTotal: 0, kprLoans: [], totalLivingAndKpr: 0, lifestyle: LIFESTYLE_TIERS[1],
+                cityMod: 1
+            };
+        }
+        const cityMod = (player.city && player.city.costMod) ? player.city.costMod : 1.0;
+        const life = getLifestyleTierObj();
+        const isAdultIndependent = player.age >= 18;
+
+        let housingCost = 0;
+        let housingLabel = "Menumpang Orang Tua / Yayasan (Gratis)";
+        let foodAndDailyCost = 0;
+        let utilityCost = 0;
+        let transportCost = 0;
+        let spouseCost = 0;
+
+        if (isAdultIndependent) {
+            const hasHome = hasOwnedResidentialProperty();
+            if (hasHome) {
+                housingCost = roundMoney(5 * cityMod);
+                housingLabel = "Perawatan Rumah Milik & IPL (Bebas Sewa Kos)";
+            } else if (player.inCollege) {
+                housingCost = roundMoney(8 * cityMod);
+                housingLabel = "Sewa Kos Mahasiswa";
+            } else {
+                housingCost = roundMoney(12 * cityMod);
+                housingLabel = "Sewa Kontrakan / Kos Tahunan";
+            }
+
+            foodAndDailyCost = roundMoney(9 * cityMod * life.mult);
+            utilityCost = roundMoney(3.2 * cityMod * (life.mult >= 1.5 ? 1.35 : 1.0));
+
+            const vehicleCount = (player.assets || []).filter(a => a.category === "vehicle").length;
+            if (vehicleCount > 0) {
+                transportCost = roundMoney(vehicleCount * 2.5 * cityMod);
+            } else {
+                transportCost = roundMoney(3.5 * cityMod);
+            }
+        }
+
+        if (player.partner && player.partner.status === "Menikah") {
+            spouseCost = roundMoney(6 * cityMod * Math.max(0.85, life.mult * 0.85));
+        }
+
+        // Biaya Hidup & Sekolah Anak per Jenjang (0-21 tahun + pengangguran >=22)
+        let childrenTotalCost = 0;
+        const childrenBreakdown = [];
+        (player.children || []).forEach(ch => {
+            let cCost = 0;
+            let cNote = "";
+            const isSwasta = ch.schoolTier === "swasta";
+            if (ch.age <= 5) {
+                cCost = roundMoney(4 * cityMod);
+                cNote = `Balita (${ch.age} thn) • Susu & Posyandu`;
+            } else if (ch.age <= 11) {
+                if (ch.kipActive && !ch.kipRevoked) {
+                    cCost = roundMoney(1.5 * cityMod);
+                    cNote = `SD (${ch.age} thn) • KIP Gratis SPP + Uang Saku`;
+                } else if (isSwasta) {
+                    cCost = roundMoney(12 * cityMod);
+                    cNote = `SD Swasta Favorit (${ch.age} thn)`;
+                } else {
+                    cCost = roundMoney(4 * cityMod);
+                    cNote = `SD Negeri/Standar (${ch.age} thn)`;
+                }
+            } else if (ch.age <= 14) {
+                if (ch.kipActive && !ch.kipRevoked) {
+                    cCost = roundMoney(2 * cityMod);
+                    cNote = `SMP (${ch.age} thn) • KIP Gratis SPP + Uang Saku`;
+                } else if (isSwasta) {
+                    cCost = roundMoney(16 * cityMod);
+                    cNote = `SMP Swasta Favorit (${ch.age} thn)`;
+                } else {
+                    cCost = roundMoney(6 * cityMod);
+                    cNote = `SMP Negeri/Standar (${ch.age} thn)`;
+                }
+            } else if (ch.age <= 17) {
+                if (ch.kipActive && !ch.kipRevoked) {
+                    cCost = roundMoney(2.5 * cityMod);
+                    cNote = `SMA (${ch.age} thn) • KIP Gratis SPP + Uang Saku`;
+                } else if (isSwasta) {
+                    cCost = roundMoney(20 * cityMod);
+                    cNote = `SMA Swasta Favorit (${ch.age} thn)`;
+                } else {
+                    cCost = roundMoney(8 * cityMod);
+                    cNote = `SMA Negeri/Standar (${ch.age} thn)`;
+                }
+            } else if (ch.age <= 21) {
+                cCost = roundMoney(14 * cityMod);
+                cNote = `Kuliah Mahasiswa (${ch.age} thn) • UKT & Kos`;
+            } else if (ch.age >= 22 && ch.jobTitle === "Pengangguran Beban Ortu") {
+                cCost = roundMoney(4 * cityMod);
+                cNote = `Beban Ortu (${ch.age} thn)`;
+            }
+            if (cCost > 0) {
+                childrenTotalCost = roundMoney(childrenTotalCost + cCost);
+                childrenBreakdown.push({ name: ch.name, cost: cCost, note: cNote });
+            }
+        });
+
+        // Cicilan KPR Aktif (Hanya berlaku untuk rumah yang dibeli secara cicilan KPR, Cash = Rp 0!)
+        const kprLoans = (player.kprLoans || []).filter(k => k.yearsLeft > 0);
+        const kprAnnualTotal = roundMoney(kprLoans.reduce((s, k) => s + (k.annualInstallment || 0), 0));
+
+        const totalLivingAndKpr = roundMoney(
+            housingCost + foodAndDailyCost + utilityCost + transportCost + spouseCost + childrenTotalCost + kprAnnualTotal
+        );
+
+        return {
+            housingCost,
+            housingLabel,
+            foodAndDailyCost,
+            utilityCost,
+            transportCost,
+            spouseCost,
+            childrenTotalCost,
+            childrenBreakdown,
+            kprAnnualTotal,
+            kprLoans,
+            totalLivingAndKpr,
+            lifestyle: life,
+            cityMod
+        };
+    }
+
+    function openBuyPropertyPaymentChoice(assetIdx) {
+        if (!player) return;
+        const as = ASSETS[assetIdx];
+        if (!as || as.category !== "property") {
+            buyAssetItem(assetIdx);
+            return;
+        }
+        const ppnRate = as.isLuxury ? 0.12 : 0.11;
+        const ppnAmt = roundMoney(as.price * ppnRate);
+        const cashTotal = roundMoney(as.price + ppnAmt);
+
+        const choices = [
+            {
+                text: `💵 Beli Tunai / Cash Keras (${formatShortJuta(cashTotal)} • Bebas Cicilan & Bunga!)`,
+                fn: () => {
+                    buyAssetItem(assetIdx);
+                }
+            }
+        ];
+
+        KPR_BANKS.forEach(bank => {
+            const effRate = as.id === "subsidi" ? bank.rateSubsidi : bank.rateCommercial;
+            const dpAmt = roundMoney(as.price * bank.dpPct);
+            const initialUpfront = roundMoney(dpAmt + ppnAmt);
+            const principal = roundMoney(as.price - dpAmt);
+            const totalWithInterest = roundMoney(principal * (1 + effRate * bank.tenor));
+            const annualInstallment = roundMoney(totalWithInterest / bank.tenor);
+
+            choices.push({
+                text: `${bank.icon} KPR ${bank.name.split(" (")[0]} — DP+PPN ${formatShortJuta(initialUpfront)} • Cicilan Rp ${annualInstallment} Jt/thn (${bank.tenor} Thn • Bunga ${(effRate * 100).toFixed(2)}%/thn)`,
+                fn: () => {
+                    buyPropertyWithKpr(assetIdx, bank.id);
+                }
+            });
+        });
+
+        choices.push({
+            text: "✕ Batal",
+            fn: () => {}
+        });
+
+        showPopupEvent(
+            as.icon,
+            `Metode Pembelian: ${as.name}`,
+            `Harga Dasar: <b>${formatShortJuta(as.price)}</b> + PPN ${Math.round(ppnRate * 100)}% (<b>${formatShortJuta(ppnAmt)}</b>).<br><br>• <b>Beli Tunai (Cash):</b> Bayar penuh ${formatShortJuta(cashTotal)} di awal, <b>0 cicilan tahunan</b> & langsung lunas.<br>• <b>Cicilan KPR Bank:</b> Bayar DP + PPN di awal, lalu angsuran pokok + bunga dipotong otomatis tiap tahun hingga tenor lunas.`,
+            choices,
+            "🏦 PILIH TUNAI ATAU KPR BANK"
+        );
+    }
+
+    function buyPropertyWithKpr(assetIdx, bankId) {
+        if (!player) return;
+        const as = ASSETS[assetIdx];
+        const bank = KPR_BANKS.find(b => b.id === bankId);
+        if (!as || !bank) return;
+
+        if (player.age < 18) {
+            showToast("KPR Bank hanya dapat diajukan setelah berusia 18 tahun!");
+            return;
+        }
+        if (bank.minSocial > 0 && (player.stats.social || 0) < bank.minSocial) {
+            showToast(`Pengajuan KPR ${bank.name.split(" (")[0]} ditolak! Butuh Skor Sosial/Kredit minimal ${bank.minSocial}%.`);
+            return;
+        }
+
+        const ppnRate = as.isLuxury ? 0.12 : 0.11;
+        const ppnAmt = roundMoney(as.price * ppnRate);
+        const dpAmt = roundMoney(as.price * bank.dpPct);
+        const upfrontCost = roundMoney(dpAmt + ppnAmt);
+
+        if (player.money < upfrontCost) {
+            showToast(`Saldo kurang untuk DP + PPN! Butuh ${formatShortJuta(upfrontCost)}.`);
+            return;
+        }
+
+        const effRate = as.id === "subsidi" ? bank.rateSubsidi : bank.rateCommercial;
+        const principal = roundMoney(as.price - dpAmt);
+        const totalInterest = roundMoney(principal * effRate * bank.tenor);
+        const totalPayable = roundMoney(principal + totalInterest);
+        const annualInstallment = roundMoney(totalPayable / bank.tenor);
+
+        player.money = roundMoney(player.money - upfrontCost);
+        const loanId = `kpr_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        player.assets.push({
+            ...as,
+            isKpr: true,
+            kprLoanId: loanId,
+            kprBankName: bank.name.split(" (")[0]
+        });
+
+        if (!Array.isArray(player.kprLoans)) player.kprLoans = [];
+        player.kprLoans.push({
+            id: loanId,
+            assetId: as.id,
+            assetName: as.name,
+            bankId: bank.id,
+            bankName: bank.name.split(" (")[0],
+            bankIcon: bank.icon,
+            principal: principal,
+            interestRate: effRate,
+            tenorTotal: bank.tenor,
+            yearsLeft: bank.tenor,
+            annualInstallment: annualInstallment,
+            remainingBalance: totalPayable
+        });
+
+        modifyStats({ happy: as.happyBonus, social: as.socialBonus });
+        playGameSound("coin");
+        addLog(`🏦 **AKAD KPR ${bank.name.split(" (")[0].toUpperCase()} DISETUJUI:** Kamu membeli **${as.icon} ${as.name}** dengan DP + PPN **-${formatShortJuta(upfrontCost)}**. Cicilan KPR: **Rp ${annualInstallment} Jt/tahun** selama **${bank.tenor} tahun** (Bunga ${(effRate * 100).toFixed(2)}%/thn). Passive income: **+Rp ${as.passive} Jt/thn**!`, "money");
+        showToast(`✅ Akad KPR ${bank.name.split(" (")[0]} disetujui!`);
+        renderKarirSheet("aset");
+        updateUI();
+    }
+
+    function payOffKprEarly(loanId) {
+        if (!player || !Array.isArray(player.kprLoans)) return;
+        const idx = player.kprLoans.findIndex(k => k.id === loanId);
+        if (idx === -1) return;
+        const loan = player.kprLoans[idx];
+        const payoffAmt = roundMoney(loan.remainingBalance * 0.82);
+        if (player.money < payoffAmt) {
+            showToast(`Saldo kurang untuk pelunasan KPR! Butuh ${formatShortJuta(payoffAmt)}.`);
+            return;
+        }
+        player.money = roundMoney(player.money - payoffAmt);
+        player.kprLoans.splice(idx, 1);
+        const linkedAsset = (player.assets || []).find(a => a.kprLoanId === loanId);
+        if (linkedAsset) {
+            linkedAsset.isKpr = false;
+        }
+        playGameSound("coin");
+        addLog(`🎉 **PELUNASAN KPR DIPERCEPAT (${loan.bankName}):** Kamu melunasi sisa KPR **${loan.assetName}** sebesar **-${formatShortJuta(payoffAmt)}**! Sertifikat SHM resmi bebas tanggungan cicilan.`, "money");
+        showToast(`🎉 KPR ${loan.assetName} LUNAS!`);
+        renderKarirSheet("aset");
+        updateUI();
+    }
+
     const ASSETS = [
         { id: "asuransi", name: "Polis Asuransi Jiwa VIP", icon: "🛡️", category: "insurance", isLuxury: false, price: 25, annualPremium: 25, sumAssured: 600, maxOwned: 1, passive: 0, happyBonus: 6, socialBonus: 5 },
         { id: "beat", name: "Motor Matic Sejuta Umat", icon: "🛵", category: "vehicle", reqSim: "C", isLuxury: false, price: 18, passive: 2, happyBonus: 6, socialBonus: 3 },
@@ -5035,7 +5446,9 @@
             critPct: plan.critPct,
             criticalIllnessClaimed: false,
             waiverActive: false,
-            deathClaimPaid: false
+            deathClaimPaid: false,
+            totalClaimsDeducted: 0,
+            penangClaimCount: 0
         };
         playGameSound("coin");
         addLog(`🛡️ **POLIS ASURANSI JIWA AKTIF:** Kamu mendaftar **${plan.icon} ${plan.name}** (Premi Rp ${plan.annualPremium} Jt/thn • Santunan Meninggal ${formatShortJuta(plan.sumAssured)}).`, "money");
@@ -5070,7 +5483,8 @@
             annualPremium: plan.annualPremium,
             coverage: plan.coverage,
             overseasDiscount: plan.overseasDiscount,
-            inpatientCashBonus: plan.inpatientCashBonus
+            inpatientCashBonus: plan.inpatientCashBonus,
+            penangClaimCount: 0
         };
         playGameSound("coin");
         addLog(`🏥 **POLIS ASURANSI KESEHATAN AKTIF:** Kamu mendaftar **${plan.icon} ${plan.name}** (Premi Rp ${plan.annualPremium} Jt/thn • Cover RS ${Math.round(plan.coverage * 100)}%).`, "money");
@@ -5102,9 +5516,15 @@
                     sumAssured: 600,
                     criticalIllnessClaimed: false,
                     waiverActive: false,
-                    deathClaimPaid: false
+                    deathClaimPaid: false,
+                    totalClaimsDeducted: 0,
+                    penangClaimCount: 0
                 };
             }
+        }
+        if (player.lifeInsurance) {
+            if (typeof player.lifeInsurance.totalClaimsDeducted !== "number") player.lifeInsurance.totalClaimsDeducted = 0;
+            if (typeof player.lifeInsurance.penangClaimCount !== "number") player.lifeInsurance.penangClaimCount = 0;
         }
         return player.lifeInsurance || null;
     }
@@ -5119,6 +5539,14 @@
         if (!ins || !ins.active) return 0;
         if (ins.waiverActive) return 0; // Bebas premi setelah sakit kritis
         return ins.annualPremium || 25;
+    }
+
+    function getRemainingLifeSumAssured() {
+        const ins = syncLifeInsuranceState();
+        if (!ins || !ins.active) return 0;
+        const baseSum = ins.sumAssured || 600;
+        const deducted = ins.totalClaimsDeducted || 0;
+        return Math.max(0, roundMoney(baseSum - deducted));
     }
 
     function cancelLifeInsurancePolicy() {
@@ -5142,13 +5570,20 @@
         const ins = player.lifeInsurance;
         if (ins.criticalIllnessClaimed) return false;
 
+        const remSum = getRemainingLifeSumAssured();
+        if (remSum <= 0) return false;
+
         ins.criticalIllnessClaimed = true;
         ins.waiverActive = true;
         const critRatio = typeof ins.critPct === 'number' ? ins.critPct : 0.5;
-        const payout = roundMoney((ins.sumAssured || 600) * critRatio);
+        const rawPayout = roundMoney((ins.sumAssured || 600) * critRatio);
+        const payout = Math.min(remSum, rawPayout);
+        ins.totalClaimsDeducted = roundMoney((ins.totalClaimsDeducted || 0) + payout);
+        const newRemSum = getRemainingLifeSumAssured();
+
         player.money = roundMoney(player.money + payout);
         playGameSound("coin");
-        addLog(`🛡️ **KLAIM SAKIT KRITIS ASURANSI JIWA VIP:** Karena mengalami **${causeText}**, kamu menerima santunan sakit kritis **50% (+${formatShortJuta(payout)})** dan **Bebas Premi (Rp 0/thn)**! Perlindungan medis & santunan meninggal dunia **100% (Rp 600 Jt)** tetap aktif.`, "money");
+        addLog(`🛡️ **KLAIM SAKIT KRITIS ASURANSI JIWA VIP:** Karena mengalami **${causeText}**, kamu menerima santunan sakit kritis **+${formatShortJuta(payout)}** dan **Bebas Premi (Rp 0/thn)**! Sisa limit santunan meninggal dunia (setelah deductible klaim): **${formatShortJuta(newRemSum)}**.`, "money");
         showToast(`🛡️ Klaim Sakit Kritis +${formatShortJuta(payout)} & Bebas Premi!`);
         return true;
     }
@@ -5158,8 +5593,13 @@
         const ins = player.lifeInsurance;
         if (isPolicyHolder && ins.deathClaimPaid) return 0;
 
-        const payout = roundMoney(ins.sumAssured || 600); // 100% = Rp 600 Jt
-        player.money = roundMoney(player.money + payout);
+        const baseSum = ins.sumAssured || 600;
+        const deducted = ins.totalClaimsDeducted || 0;
+        const payout = Math.max(0, roundMoney(baseSum - deducted));
+
+        if (payout > 0) {
+            player.money = roundMoney(player.money + payout);
+        }
         if (isPolicyHolder) {
             ins.deathClaimPaid = true;
             ins.active = false;
@@ -5168,8 +5608,13 @@
             }
         }
         playGameSound("coin");
-        addLog(`🛡️ **SANTUNAN ASURANSI JIWA VIP (100%):** Atas berpulangnya **${deceasedLabel}**, Polis Asuransi Jiwa VIP mencairkan santunan meninggal dunia sebesar **+${formatShortJuta(payout)}**!`, "money");
-        showToast(`🛡️ Santunan Jiwa VIP +${formatShortJuta(payout)} cair!`);
+        if (payout > 0) {
+            const dedNote = deducted > 0 ? ` *(dipotong deductible klaim berjalan -${formatShortJuta(deducted)} dari plafon awal ${formatShortJuta(baseSum)})*` : "";
+            addLog(`🛡️ **SANTUNAN KEMATIAN ASURANSI JIWA VIP:** Atas berpulangnya **${deceasedLabel}**, Polis Asuransi Jiwa VIP mencairkan santunan meninggal dunia bersih sebesar **+${formatShortJuta(payout)}**${dedNote}!`, "money");
+            showToast(`🛡️ Santunan Jiwa VIP +${formatShortJuta(payout)} cair!`);
+        } else {
+            addLog(`🛡️ **KLAIM MENINGGAL DUNIA NIHIL (HABIS DEDUCTIBLE):** Atas berpulangnya **${deceasedLabel}**, plafon santunan awal (${formatShortJuta(baseSum)}) telah habis terpotong klaim sebelumnya (-${formatShortJuta(deducted)}).`, "normal");
+        }
         return payout;
     }
 
@@ -6792,11 +7237,10 @@
             }
         }
 
-        // Biaya Hidup Tahunan + Inflasi Realistis saat dewasa (Kos/Kontrakan, Makan, Kuota, PPN 12%)
-        if (player.age >= 18 && !player.inCollege) {
-            const inflationMultiplier = 1 + Math.max(0, (player.age - 18) * 0.018);
-            cost += roundMoney(12 * player.city.costMod * inflationMultiplier);
-        }
+        // Biaya Hidup Realistis (Kos/Maintenance Rumah, Makan, Listrik/Air/Kuota, Transportasi, Pasangan, Sekolah Anak & Cicilan KPR)
+        const livingSummary = calculateDetailedLivingAndKprSummary();
+        cost += livingSummary.totalLivingAndKpr;
+
         // Beban Generasi Sandwich jika orang tua masih hidup & miskin
         if (player.age >= 19) {
             const alivePoorParents = (player.parents || []).filter(p => p.alive && p.wealth < 10);
@@ -6804,30 +7248,10 @@
                 cost += player.family.sandwichBurden;
             }
         }
-        // Biaya rumah tangga pasangan
+        // Kontribusi penghasilan pasangan menikah
         if (player.partner && player.partner.status === "Menikah") {
-            cost += 6;
             if (player.partner.income > 0 && (player.partner.rel || 70) >= 60) {
                 income += roundMoney(player.partner.income * 0.35);
-            }
-        }
-        // Biaya Anak: Usia 0-21 Tahun adalah tanggungan murni
-        for (let i = 0; i < player.children.length; i++) {
-            const ch = player.children[i];
-            if (ch.age <= 5) {
-                cost += 4;
-            } else if (ch.age <= 17) {
-                if (ch.kipActive && !ch.kipRevoked) {
-                    cost += 0;
-                } else if (ch.kipRevoked) {
-                    cost += 7;
-                } else {
-                    cost += 5;
-                }
-            } else if (ch.age <= 21) {
-                cost += 8;
-            } else if (ch.age >= 22 && ch.jobTitle === "Pengangguran Beban Ortu") {
-                cost += 4;
             }
         }
 
@@ -7039,7 +7463,11 @@
             actionsThisYear: 0,
             relActionsThisYear: 0,
             onsHappyCountThisYear: 0,
-            bulkFriendMaintainUsedThisYear: false
+            bulkFriendMaintainUsedThisYear: false,
+            bpjsTreatmentsThisYear: 0,
+            penangTreatmentsThisYear: 0,
+            lifestyle: "standar",
+            kprLoans: []
         };
 
         document.getElementById("birthModal").classList.add("hidden");
@@ -7435,6 +7863,8 @@
         player.relActionsThisYear = 0;
         player.onsHappyCountThisYear = 0;
         player.bulkFriendMaintainUsedThisYear = false;
+        player.bpjsTreatmentsThisYear = 0;
+        player.penangTreatmentsThisYear = 0;
 
         // Pergerakan Harga Saham & Crypto 100% Tidak Terprediksi Setiap Tahun
         if (!player.marketPrices) {
@@ -7557,6 +7987,9 @@
             const ch = player.children[i];
             ch.age += 1;
             ch.relCountThisYear = 0;
+            if (ch.age >= 6 && ch.age <= 17 && ch.schoolTier === "swasta") {
+                ch.stats.edu = clamp(ch.stats.edu + randInt(2, 4), 0, 100);
+            }
             if (ch.age === 6 || ch.age === 12 || ch.age === 15) {
                 ch.stats.edu = clamp(ch.stats.edu + randInt(2, 5), 0, 100);
             }
@@ -7638,6 +8071,18 @@
             player.friends.push(f1);
             if (!player.kipRevoked && (player.kipActive || isParentEligibleForKip())) {
                 player.kipActive = true;
+            }
+            // Pre-assign sekolah dasar default sementara agar status isEnrolledInSchool() tetap valid saat dialog PPDB SD muncul
+            if (!player.currentSchool && !player.droppedOut && !player.expelledStage) {
+                player.currentSchool = {
+                    name: `Sekolah Rakyat SD ${player.city.name}`,
+                    type: "Sekolah Rakyat (Gratis & Tanpa Syarat)",
+                    minParentWealth: -999999,
+                    minEdu: 0,
+                    annualFee: 0,
+                    eduBonus: 3,
+                    socialBonus: 3
+                };
             }
             addLog(`🎒 Usia 6 Tahun! Saatnya memilih **Sekolah Dasar (SD)** di **${player.city.name}**. Teman barumu bernama **${f1.name}** (${f1.role}).`, "school");
             openSchoolEnrollmentDialog("sd", "Sekolah Dasar (SD)");
@@ -7722,6 +8167,7 @@
                     player.schoolRepeatStage = null;
                     player.currentSchool = null;
                     player.graduatedSMA = true;
+                    player.kipActive = false; // Lulus SMA, masa KIP sekolah selesai secara normal (bukan dicabut)
                     addLog(`🎓 **LULUS UJIAN SMA (${sc}/10):** Selamat! Kamu resmi **Lulus SMA** di **${player.city.name}**! Kini kamu bisa mendaftar Universitas atau melamar pekerjaan kota.`, "school");
                     showToast(`🎉 Lulus SMA (${sc}/10)!`);
                 },
@@ -7817,10 +8263,56 @@
             }
         }
 
-        // Cashflow Tahunan & Pajak Coretax DJP +62
+        // Cashflow Tahunan, Biaya Hidup, Cicilan KPR & Pajak Coretax DJP +62
         const taxInfo = calculateDetailedTaxSummary();
+        const livInfo = calculateDetailedLivingAndKprSummary();
         const net = getAnnualNetCashflow();
         player.money = Math.round((player.money + net) * 10) / 10;
+
+        // Efek Stat Tahunan dari Mode Gaya Hidup
+        if (player.age >= 18) {
+            const lf = livInfo.lifestyle;
+            if (lf.happyDelta || lf.healthDelta || lf.looksDelta || lf.socialDelta) {
+                modifyStats({
+                    happy: lf.happyDelta || 0,
+                    health: lf.healthDelta || 0,
+                    looks: lf.looksDelta || 0,
+                    social: lf.socialDelta || 0
+                });
+            }
+            if (player.money < 0 && player.lifestyle && player.lifestyle !== "hemat") {
+                player.lifestyle = "hemat";
+                addLog(`⚠️ **PENYESUAIAN GAYA HIDUP DARURAT:** Karena saldo minus, gaya hidupmu otomatis diturunkan ke **🍜 Mode Hemat (0.7x)** untuk menekan pengeluaran!`, "danger");
+            }
+        }
+
+        // Progres Pelunasan Cicilan KPR Bank Tahunan
+        if (Array.isArray(player.kprLoans) && player.kprLoans.length > 0) {
+            let completedLoans = [];
+            player.kprLoans.forEach(loan => {
+                if (loan.yearsLeft > 0) {
+                    loan.yearsLeft -= 1;
+                    loan.remainingBalance = Math.max(0, roundMoney(loan.remainingBalance - loan.annualInstallment));
+                    if (loan.yearsLeft <= 0) {
+                        completedLoans.push(loan);
+                        const linkedAsset = (player.assets || []).find(a => a.kprLoanId === loan.id);
+                        if (linkedAsset) linkedAsset.isKpr = false;
+                    }
+                }
+            });
+            completedLoans.forEach(cl => {
+                addLog(`🎉 **CICILAN KPR LUNAS (${cl.bankName}):** Selamat! Seluruh angsuran KPR **${cl.assetName}** selama ${cl.tenorTotal} tahun telah lunas 100%!`, "money");
+                showToast(`🎉 KPR ${cl.assetName} LUNAS!`);
+            });
+            player.kprLoans = player.kprLoans.filter(k => k.yearsLeft > 0);
+        }
+
+        // Log Rincian Biaya Hidup & Cicilan KPR Tahunan agar transparan
+        if (livInfo.totalLivingAndKpr > 0) {
+            const kprNote = livInfo.kprAnnualTotal > 0 ? ` • Cicilan KPR: **-Rp ${livInfo.kprAnnualTotal} Jt**` : "";
+            const kidNote = livInfo.childrenTotalCost > 0 ? ` • Anak & Sekolah (${player.children.length}): **-Rp ${livInfo.childrenTotalCost} Jt**` : "";
+            addLog(`🧾 **BIAYA HIDUP (${player.city.name} • ${livInfo.lifestyle.icon} ${livInfo.lifestyle.name.split(" (")[0]}):** Total **-Rp ${livInfo.totalLivingAndKpr} Jt/thn** (Hunian: -Rp ${livInfo.housingCost} Jt • Makan & Utilitas: -Rp ${roundMoney(livInfo.foodAndDailyCost + livInfo.utilityCost)} Jt • Transport: -Rp ${livInfo.transportCost} Jt${livInfo.spouseCost > 0 ? ` • Pasangan: -Rp ${livInfo.spouseCost} Jt` : ""}${kidNote}${kprNote}).`, "normal");
+        }
 
         // Jika memilih mode Ngemplang Pajak, akumulasi tunggakan pajak & risiko Audit SP2DK DJP
         if (player.age >= 18 && player.taxMode === "ngemplang" && taxInfo.rawTotalTax > 0) {
@@ -7865,14 +8357,14 @@
 
         // Pencairan Dana PIP / Kartu Indonesia Pintar (KIP) untuk Pemain saat usia SD-SMU (6-17 tahun)
         if (player.age >= 6 && player.age <= 17) {
-            if (!isEnrolledInSchool()) {
-                // Sudah dikeluarkan / putus sekolah -> KIP otomatis distop dan TIDAK dikenakan biaya SPP sekolah
+            if (player.droppedOut || player.expelledStage) {
+                // Hanya jika benar-benar dikeluarkan / putus sekolah -> KIP distop & tidak kena SPP
                 if (player.kipActive) {
                     player.kipActive = false;
                     player.kipRevoked = true;
                     if (!player.kipRevokedReason) player.kipRevokedReason = "expelled_non_cheat";
                 }
-            } else if (!player.kipRevoked && (player.kipActive || isParentEligibleForKip())) {
+            } else if (isEnrolledInSchool() && !player.kipRevoked && (player.kipActive || isParentEligibleForKip())) {
                 player.kipActive = true;
                 const kipData = getKipBenefitByAge(player.age);
                 if (kipData) {
@@ -7939,7 +8431,7 @@
             addLog(`😅 Menganggur di usia ${player.age} tahun. Tagihan hidup & pajak aset jalan terus: **Rp ${net} Jt**.`, "anomaly");
         }
 
-        if (player.money < 0) {
+        if (player.money < 0 && player.age >= 17) {
             const bungaPinjol = roundMoney(Math.max(1, Math.abs(player.money) * 0.15));
             player.money = roundMoney(player.money - bungaPinjol);
             modifyStats({ happy: -8, health: -4, social: -5 });
@@ -9307,6 +9799,35 @@
             `;
             bodyEl.appendChild(ppnBanner);
 
+            // KARTU CICILAN KPR AKTIF (JIKA MEMILIKI RUMAH DENGAN SKEMA KPR BANK)
+            const activeKprs = (player.kprLoans || []).filter(k => k.yearsLeft > 0);
+            if (activeKprs.length > 0) {
+                const kprCard = document.createElement("div");
+                kprCard.className = "item-card";
+                kprCard.style.borderColor = "#f59e0b";
+                const kprRows = activeKprs.map(k => {
+                    const earlyPayoff = roundMoney(k.remainingBalance * 0.82);
+                    return `
+                        <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:8px; margin-top:4px;">
+                            <div style="font-size:11.5px; font-weight:900; color:#78350f;">${k.bankIcon} ${k.assetName} — ${k.bankName}</div>
+                            <div style="font-size:10.5px; color:#92400e; margin-top:2px;">
+                                • Cicilan Tahunan: <b>Rp ${k.annualInstallment} Jt/thn</b> (Bunga ${(k.interestRate * 100).toFixed(2)}%/thn)<br>
+                                • Sisa Tenor: <b>${k.yearsLeft} dari ${k.tenorTotal} Tahun</b> • Sisa Kewajiban: <b>${formatShortJuta(k.remainingBalance)}</b>
+                            </div>
+                            <button class="btn-action btn-emerald" style="width:100%; margin-top:5px;" onclick="payOffKprEarly('${k.id}')">
+                                💰 Pelunasan KPR Dipercepat (${formatShortJuta(earlyPayoff)} • Diskon Bunga 18%)
+                            </button>
+                        </div>
+                    `;
+                }).join("");
+                kprCard.innerHTML = `
+                    <div class="item-title">🏦 Fasilitas Kredit Pemilikan Rumah (KPR Aktif)</div>
+                    <div class="item-desc">Rumah yang dibeli secara tunai (Cash) bebas cicilan. Berikut daftar KPR cicilan bank yang sedang berjalan:</div>
+                    ${kprRows}
+                `;
+                bodyEl.appendChild(kprCard);
+            }
+
             ASSETS.forEach((as, idx) => {
                 if (as.id === "asuransi") {
                     const isLifeActive = hasActiveLifeInsurance();
@@ -9324,9 +9845,18 @@
                             <span style="font-size:9.5px; font-weight:600;">${p.desc}</span>
                         </button>`;
                     }).join("");
+                    const remSumAset = getRemainingLifeSumAssured();
+                    const dedAmtAset = isLifeActive ? (curLife.totalClaimsDeducted || 0) : 0;
+                    const activeLifeNote = isLifeActive
+                        ? `<div style="font-size:10.5px; color:#15803d; background:#f0fdf4; border:1px solid #86efac; padding:6px 8px; border-radius:8px;">
+                            ✅ <b>Polis Aktif:</b> ${curLife.name || 'Asuransi Jiwa VIP'} • Premi Aktual: <b>Rp ${getLifeInsuranceAnnualPremium()} Jt/thn</b><br>
+                            • Plafon Awal: ${formatShortJuta(curLife.sumAssured || 600)} • Deductible Klaim Terpakai: <b style="color:#dc2626;">-${formatShortJuta(dedAmtAset)}</b> • Sisa Santunan Meninggal: <b>${formatShortJuta(remSumAset)}</b>
+                           </div>`
+                        : '';
                     lifeCard.innerHTML = `
                         <div class="item-title">🛡️ Asuransi Jiwa VIP (Biru • Merah • Hijau)</div>
-                        <div class="item-desc">Melindungi finansial keluarga dengan Santunan Meninggal Dunia & Santunan Penyakit Kritis + Bebas Premi.</div>
+                        <div class="item-desc">Melindungi finansial keluarga dengan Santunan Meninggal Dunia & Santunan Penyakit Kritis + Bebas Premi. <i>(Jika dipakai berobat ke Penang, premi tahunan naik & klaim meninggal dideductible sebesar klaim terpakai)</i>.</div>
+                        ${activeLifeNote}
                         <div style="display:flex; flex-direction:column; gap:6px;">${lifeBtns}</div>
                         ${isLifeActive ? `<button class="btn-action btn-rose" onclick="cancelLifeInsurancePolicy()">❌ Cancel ${curLife.name || 'Asuransi Jiwa'}</button>` : ''}
                     `;
@@ -9347,9 +9877,15 @@
                             <span style="font-size:9.5px; font-weight:600;">${p.desc}</span>
                         </button>`;
                     }).join("");
+                    const activeHealthNote = isHealthActive
+                        ? `<div style="font-size:10.5px; color:#0369a1; background:#f0f9ff; border:1px solid #7dd3fc; padding:6px 8px; border-radius:8px;">
+                            ✅ <b>Polis Aktif:</b> ${curHealth.name} • Premi Aktual: <b>Rp ${curHealth.annualPremium} Jt/thn</b> (Klaim Penang: ${curHealth.penangClaimCount || 0}x)
+                           </div>`
+                        : '';
                     healthCard.innerHTML = `
                         <div class="item-title">🏥 Asuransi Kesehatan VIP (Biru • Merah • Hijau)</div>
-                        <div class="item-desc">Menanggung 90%–100% biaya rumah sakit, RS Penang/Singapura & santunan tunai rawat inap!</div>
+                        <div class="item-desc">Menanggung 90%–100% biaya rumah sakit, RS Penang/Singapura & santunan tunai rawat inap! <i>(Jika dipakai ke Penang, premi tahunan VIP meningkat)</i>.</div>
+                        ${activeHealthNote}
                         <div style="display:flex; flex-direction:column; gap:6px;">${healthBtns}</div>
                         ${isHealthActive ? `<button class="btn-action btn-rose" onclick="cancelHealthInsurancePolicy()">❌ Cancel ${curHealth.name}</button>` : ''}
                     `;
@@ -9380,9 +9916,18 @@
                         </div>
                     </div>
                     ${as.reqSim ? `<div style="font-size:10px; font-weight:800; color:${hasRequiredSim(as.reqSim) ? '#15803d' : '#dc2626'};">🪪 Syarat Pembelian: Wajib ${getRequiredSimLabel(as.reqSim)} ${hasRequiredSim(as.reqSim) ? '(✅ Dimiliki)' : '(🔒 Belum Punya — Wajib Ujian SIM)'}</div>` : ''}
-                    <button class="btn-action ${as.reqSim && !hasRequiredSim(as.reqSim) ? 'btn-dark' : 'btn-gold'}" onclick="buyAssetItem(${idx})">
-                        ${as.reqSim && !hasRequiredSim(as.reqSim) ? `🪪 Ikuti Ujian ${getRequiredSimLabel(as.reqSim)} Dulu` : `🛒 Beli Aset (${formatShortJuta(totalBuyPrice)})`}
-                    </button>
+                    ${as.category === "property"
+                        ? `<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                            <button class="btn-action btn-emerald" onclick="buyAssetItem(${idx})">
+                                💵 Beli Cash (${formatShortJuta(totalBuyPrice)})<br><span style="font-size:9px; font-weight:600;">Tanpa Cicilan & Bunga</span>
+                            </button>
+                            <button class="btn-action btn-gold" onclick="openBuyPropertyPaymentChoice(${idx})">
+                                🏦 Cicil KPR Bank (DP ${as.id === 'subsidi' ? '15%' : '15–20%'})<br><span style="font-size:9px; font-weight:600;">Pilih BTN/Mandiri/BCA/BNI/BSI</span>
+                            </button>
+                           </div>`
+                        : `<button class="btn-action ${as.reqSim && !hasRequiredSim(as.reqSim) ? 'btn-dark' : 'btn-gold'}" onclick="buyAssetItem(${idx})">
+                            ${as.reqSim && !hasRequiredSim(as.reqSim) ? `🪪 Ikuti Ujian ${getRequiredSimLabel(as.reqSim)} Dulu` : `🛒 Beli Aset (${formatShortJuta(totalBuyPrice)})`}
+                           </button>`}
                 `;
                 bodyEl.appendChild(card);
             });
@@ -9422,6 +9967,43 @@
                 ${tx.bracketsDetail.length > 0 ? `<div class="item-desc" style="margin-top:4px;"><b>Rincian Lapisan Tarif Progresif PPh 21:</b><br>${tx.bracketsDetail.join("<br>")}</div>` : ''}
             `;
             bodyEl.appendChild(cardSummary);
+
+            // KARTU RINCIAN BIAYA HIDUP, GAYA HIDUP & SEKOLAH ANAK
+            const liv = calculateDetailedLivingAndKprSummary();
+            const curLifeId = liv.lifestyle.id;
+            const lifeBtnsHtml = LIFESTYLE_TIERS.map(lt => `
+                <button class="btn-action ${curLifeId === lt.id ? 'btn-emerald' : 'btn-dark'}" style="text-align:left;" onclick="setPlayerLifestyle('${lt.id}')">
+                    ${curLifeId === lt.id ? '✅ AKTIF:' : '💳 Pilih:'} <b>${lt.icon} ${lt.name}</b><br>
+                    <span style="font-size:9.5px; font-weight:600;">${lt.desc}</span>
+                </button>
+            `).join("");
+            const kidsListHtml = liv.childrenBreakdown.length > 0
+                ? liv.childrenBreakdown.map(kb => `<div style="display:flex; justify-content:space-between; padding-left:8px; color:#475569;"><span>↳ ${kb.name} (${kb.note}):</span><b style="color:#dc2626;">-Rp ${kb.cost} Jt/thn</b></div>`).join("")
+                : "";
+
+            const livingCard = document.createElement("div");
+            livingCard.className = "item-card";
+            livingCard.style.borderColor = "#0284c7";
+            livingCard.innerHTML = `
+                <div class="item-title">🧾 Rincian Biaya Hidup, Sekolah Anak & KPR (${player.city.name} • Indeks ${liv.cityMod}x)</div>
+                <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:10px; font-size:11px; display:flex; flex-direction:column; gap:4px;">
+                    <div style="display:flex; justify-content:space-between;"><span>🏠 ${liv.housingLabel}:</span><b style="color:#dc2626;">-Rp ${liv.housingCost} Jt/thn</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>🍚 Makan & Kebutuhan Pokok (${liv.lifestyle.icon}):</span><b style="color:#dc2626;">-Rp ${liv.foodAndDailyCost} Jt/thn</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>⚡ Listrik, Air & Internet/Kuota:</span><b style="color:#dc2626;">-Rp ${liv.utilityCost} Jt/thn</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>🚌 Transportasi / BBM Kendaraan:</span><b style="color:#dc2626;">-Rp ${liv.transportCost} Jt/thn</b></div>
+                    ${liv.spouseCost > 0 ? `<div style="display:flex; justify-content:space-between;"><span>💑 Kebutuhan Rumah Tangga Pasangan:</span><b style="color:#dc2626;">-Rp ${liv.spouseCost} Jt/thn</b></div>` : ''}
+                    <div style="display:flex; justify-content:space-between;"><span>🎒 Biaya Hidup & Sekolah Anak (${(player.children || []).length} Anak):</span><b style="color:#dc2626;">-Rp ${liv.childrenTotalCost} Jt/thn</b></div>
+                    ${kidsListHtml}
+                    <div style="display:flex; justify-content:space-between;"><span>🏦 Cicilan KPR Bank Aktif (${liv.kprLoans.length} Polis KPR):</span><b style="color:#dc2626;">-Rp ${liv.kprAnnualTotal} Jt/thn</b></div>
+                    <div style="border-top:1px solid #cbd5e1; padding-top:5px; display:flex; justify-content:space-between; font-size:12px;">
+                        <b>Total Biaya Hidup & KPR Tahunan:</b>
+                        <b style="color:#dc2626;">-Rp ${liv.totalLivingAndKpr} Jt/thn</b>
+                    </div>
+                </div>
+                <div class="item-title" style="font-size:12px; margin-top:4px;">💳 Atur Standar Gaya Hidup Bulanan/Tahunan:</div>
+                <div style="display:flex; flex-direction:column; gap:5px;">${lifeBtnsHtml}</div>
+            `;
+            bodyEl.appendChild(livingCard);
 
             const stratCard = document.createElement("div");
             stratCard.className = "item-card";
@@ -10260,6 +10842,42 @@
                         { weight: 25, text: "Kamu bosan dengan menu bekal yang itu-itu saja, namun tetap baik untuk tubuhmu.", effects: () => ({ health: randInt(2, 5), happy: -randInt(1, 3) }) },
                         { weight: 10, text: "Kamu lupa memakan bekalmu sampai basi di dalam tas!", effects: () => ({ happy: -randInt(2, 5) }) }
                     ]
+                },
+                {
+                    icon: "🏃",
+                    title: "Lari Pagi & Senam Mandiri di Lapangan RT",
+                    cost: 0,
+                    desc: "Gratis (Usia 6-17 Thn) • Olahraga mandiri tanpa biaya untuk menjaga kebugaran fisik (peningkatan lebih bertahap dibanding ekskul berbayar).",
+                    minAge: 6, maxAge: 17,
+                    outcomes: [
+                        { weight: 60, text: "Keringat pagi di lapangan warga membuat tubuhmu terasa lebih segar dan bugar.", effects: () => ({ health: randInt(2, 5), happy: randInt(1, 3) }) },
+                        { weight: 25, text: "Kamu hanya jogging santai sebentar sebelum pulang sarapan.", effects: () => ({ health: randInt(1, 2), happy: randInt(0, 2) }) },
+                        { weight: 15, text: "Kamu tersandung batu di lapangan hingga lututmu lecet ringan.", effects: () => ({ health: -randInt(1, 3), happy: -randInt(1, 3) }) }
+                    ]
+                },
+                {
+                    icon: "🧼",
+                    title: "Cuci Muka Teratur, Rapikan Rambut & Tidur Cukup",
+                    cost: 0,
+                    desc: "Gratis (Usia 8-17 Thn) • Merawat kebersihan diri secara alami di rumah tanpa produk skincare mahal.",
+                    minAge: 8, maxAge: 17,
+                    outcomes: [
+                        { weight: 60, text: "Kebiasaan hidup bersih dan tidur teratur membuat wajahmu tampak lebih segar alami.", effects: () => ({ looks: randInt(1, 3), health: randInt(1, 3), happy: randInt(1, 3) }) },
+                        { weight: 30, text: "Penampilanmu terlihat rapi seperti biasa tanpa perubahan drastis.", effects: () => ({ looks: randInt(0, 1), happy: randInt(0, 2) }) },
+                        { weight: 10, text: "Kamu salah memotong poni rambut sendiri di depan cermin hingga terlihat miring!", effects: () => ({ looks: -randInt(2, 4), happy: -randInt(2, 4) }) }
+                    ]
+                },
+                {
+                    icon: "🪁",
+                    title: "Main Bareng Teman Komplek & Gotong Royong",
+                    cost: 0,
+                    desc: "Gratis (Usia 6-17 Thn) • Bersosialisasi dengan tetangga sebaya di lingkungan rumah tanpa mengeluarkan uang jajan.",
+                    minAge: 6, maxAge: 17,
+                    outcomes: [
+                        { weight: 65, text: "Bermain bersama teman sebaya di sore hari membuatmu akrab dan ceria.", effects: () => ({ social: randInt(2, 5), happy: randInt(2, 5) }) },
+                        { weight: 25, text: "Kalian hanya mengobrol sebentar di pos ronda sebelum magrib.", effects: () => ({ social: randInt(1, 2), happy: randInt(1, 2) }) },
+                        { weight: 10, text: "Terjadi selisih paham kecil saat bermain bola hingga suasana agak canggung.", effects: () => ({ social: -randInt(1, 3), happy: -randInt(1, 3) }) }
+                    ]
                 }
             ];
             renderUpgradeCards(acts, bodyEl);
@@ -10327,6 +10945,66 @@
                         { weight: 25, text: "Kamu merasa asupan gizimu terjaga, meski rasanya hambar.", effects: () => ({ health: randInt(2, 6) }) },
                         { weight: 10, text: "Kamu keracunan makanan dari salah satu menu katering yang kurang segar!", effects: () => ({ health: -randInt(4, 10), happy: -randInt(3, 8) }) }
                     ]
+                },
+                {
+                    icon: "🏃‍♂️",
+                    title: "Calisthenics & Jogging Mandiri di Taman Kota",
+                    cost: 0,
+                    desc: "Gratis (Usia 18-59 Thn) • Push-up, sit-up, dan lari sore tanpa biaya gym (peningkatan fisik lebih bertahap dibanding Member Gym berbayar).",
+                    minAge: 18, maxAge: 59,
+                    outcomes: [
+                        { weight: 60, text: "Latihan fisik rutin di taman kota membuat napasmu lebih lega dan badan terasa fit.", effects: () => ({ health: randInt(1, 3), looks: randInt(1, 3), happy: randInt(1, 3) }) },
+                        { weight: 25, text: "Cuaca panas membuatmu cepat lelah sehingga hanya latihan ringan.", effects: () => ({ health: randInt(1, 2), looks: randInt(0, 1) }) },
+                        { weight: 15, text: "Otot betismu kram karena kurang pemanasan sebelum lari!", effects: () => ({ health: -randInt(2, 4), happy: -randInt(1, 3) }) }
+                    ]
+                },
+                {
+                    icon: "📚",
+                    title: "Belajar Otodidak via Webinar Gratis & Perpustakaan Daerah",
+                    cost: 0,
+                    desc: "Gratis (Usia 18-59 Thn) • Meningkatkan wawasan mandiri tanpa biaya kursus sertifikasi (efek lebih kecil dibanding Kursus Eksekutif berbayar).",
+                    minAge: 18, maxAge: 59,
+                    outcomes: [
+                        { weight: 60, text: "Kamu menyerap banyak ilmu praktis dari buku dan materi edukasi gratis.", effects: () => ({ edu: randInt(1, 3), happy: randInt(1, 2) }) },
+                        { weight: 25, text: "Materi yang kamu baca cukup dasar, namun tetap menyegarkan ingatan.", effects: () => ({ edu: randInt(1, 2) }) },
+                        { weight: 15, text: "Kamu malah ketiduran di depan layar saat menonton rekaman materi panjang.", effects: () => ({ happy: -randInt(1, 3), health: -randInt(0, 2) }) }
+                    ]
+                },
+                {
+                    icon: "🧴",
+                    title: "Perawatan Wajah Alami, Tidur Teratur & Rapikan Penampilan",
+                    cost: 0,
+                    desc: "Gratis (Usia 18-59 Thn) • Menjaga kebersihan kulit, merapikan kumis/rambut, dan istirahat cukup tanpa klinik estetika mahal.",
+                    minAge: 18, maxAge: 59,
+                    outcomes: [
+                        { weight: 60, text: "Pola tidur cukup dan perawatan dasar membuat wajahmu terlihat lebih bersih dan segar.", effects: () => ({ looks: randInt(1, 3), health: randInt(1, 2), happy: randInt(1, 3) }) },
+                        { weight: 30, text: "Penampilanmu tetap rapi, walau belum sekinclong perawatan klinik VIP.", effects: () => ({ looks: randInt(0, 1), happy: randInt(0, 2) }) },
+                        { weight: 10, text: "Masker alami racikan sendiri membuat kulitmu sedikit kemerahan sementara.", effects: () => ({ looks: -randInt(1, 3), happy: -randInt(1, 3) }) }
+                    ]
+                },
+                {
+                    icon: "☕",
+                    title: "Kerja Bakti RT & Ngobrol Santai di Pos Ronda / Warkop",
+                    cost: 0,
+                    desc: "Gratis (Usia 18-59 Thn) • Mempererat hubungan sosial dengan tetangga sekitar tanpa biaya golf atau lounge pejabat.",
+                    minAge: 18, maxAge: 59,
+                    outcomes: [
+                        { weight: 65, text: "Keakraban dengan warga sekitar terjalin hangat, kamu makin dikenal ramah di lingkungan.", effects: () => ({ social: randInt(1, 3), happy: randInt(1, 4) }) },
+                        { weight: 25, text: "Obrolan ringan seputar kabar lingkungan membuat pikiran lebih rileks.", effects: () => ({ social: randInt(1, 2), happy: randInt(0, 2) }) },
+                        { weight: 10, text: "Obrolan di warkop melebar ke debat kusir hingga suasana jadi kurang enak.", effects: () => ({ social: -randInt(1, 3), happy: -randInt(2, 4) }) }
+                    ]
+                },
+                {
+                    icon: "🧘‍♂️",
+                    title: "Meditasi Pagi, Peregangan & Minum Air Putih Cukup",
+                    cost: 0,
+                    desc: "Gratis (Usia 18-59 Thn) • Menjaga kesehatan mental dan kebugaran harian secara gratis di rumah.",
+                    minAge: 18, maxAge: 59,
+                    outcomes: [
+                        { weight: 70, text: "Pikiranmu terasa jauh lebih tenang dan stres pekerjaan berkurang.", effects: () => ({ happy: randInt(2, 4), health: randInt(1, 3) }) },
+                        { weight: 20, text: "Kamu merasa sedikit lebih rileks setelah peregangan pagi.", effects: () => ({ happy: randInt(1, 2), health: randInt(0, 1) }) },
+                        { weight: 10, text: "Pikiranmu masih dipenuhi tagihan bulanan sehingga sulit fokus meditasi.", effects: () => ({ happy: -randInt(1, 2) }) }
+                    ]
                 }
             ];
             renderUpgradeCards(acts, bodyEl);
@@ -10381,6 +11059,42 @@
                         { weight: 60, text: "Tusukan jarum akupuntur sukses meredakan linu di punggungmu. Tubuh terasa lebih hangat dan enteng!", effects: () => ({ health: randInt(4, 9), happy: randInt(2, 6) }) },
                         { weight: 30, text: "Terapi memberikan sedikit rasa rileks di sekujur tubuh, walau linunya masih sesekali terasa.", effects: () => ({ health: randInt(2, 5) }) },
                         { weight: 10, text: "Kamu alergi dengan ramuan jamunya, membuat perutmu kembung seharian.", effects: () => ({ health: -randInt(2, 5), happy: -randInt(2, 5) }) }
+                    ]
+                },
+                {
+                    icon: "🚶‍♂️",
+                    title: "Jalan Santai Pagi & Berjemur di Teras Rumah",
+                    cost: 0,
+                    desc: "Gratis (Usia 60-80 Thn) • Aktivitas fisik ringan mandiri tanpa biaya iuran senam maupun terapi geriatri.",
+                    minAge: 60, maxAge: 80,
+                    outcomes: [
+                        { weight: 65, text: "Sinar matahari pagi dan jalan santai membuat badanmu terasa lebih hangat dan segar.", effects: () => ({ health: randInt(1, 3), happy: randInt(1, 3) }) },
+                        { weight: 25, text: "Kamu berjalan santai sebentar di depan rumah sebelum duduk beristirahat.", effects: () => ({ health: randInt(1, 2) }) },
+                        { weight: 10, text: "Lututmu terasa sedikit kaku karena udara pagi cukup dingin.", effects: () => ({ health: -randInt(1, 2), happy: -randInt(1, 2) }) }
+                    ]
+                },
+                {
+                    icon: "🪴",
+                    title: "Berkebun di Halaman & Membaca Koran / Buku Lama",
+                    cost: 0,
+                    desc: "Gratis (Usia 60-80 Thn) • Mengisi hari tua dengan merawat tanaman dan menjaga ketajaman pikiran secara gratis.",
+                    minAge: 60, maxAge: 80,
+                    outcomes: [
+                        { weight: 65, text: "Melihat tanaman tumbuh subur dan membaca bacaan bermutu membuat pikiranmu tenang dan tajam.", effects: () => ({ happy: randInt(2, 4), edu: randInt(1, 2), health: randInt(0, 2) }) },
+                        { weight: 25, text: "Hari berlalu dengan damai sambil menyiram tanaman di pekarangan.", effects: () => ({ happy: randInt(1, 2) }) },
+                        { weight: 10, text: "Pinggangmu pegal setelah terlalu lama membungkuk mencabuti rumput liar.", effects: () => ({ health: -randInt(1, 3), happy: -randInt(1, 2) }) }
+                    ]
+                },
+                {
+                    icon: "🫖",
+                    title: "Silahturahmi & Ngobrol Sore Bersama Tetangga Komplek",
+                    cost: 0,
+                    desc: "Gratis (Usia 60-80 Thn) • Menjaga kehangatan sosial di masa pensiun tanpa biaya arisan.",
+                    minAge: 60, maxAge: 80,
+                    outcomes: [
+                        { weight: 65, text: "Bertukar cerita masa muda bersama tetangga membuat hatimu senang dan akrab.", effects: () => ({ social: randInt(1, 4), happy: randInt(1, 4) }) },
+                        { weight: 25, text: "Sapaan ramah dengan tetangga yang lewat membuat soremu terasa hangat.", effects: () => ({ social: randInt(1, 2), happy: randInt(1, 2) }) },
+                        { weight: 10, text: "Tetangga sedang sibuk masing-masing sehingga kamu hanya duduk sebentar di teras.", effects: () => ({ happy: -randInt(0, 2) }) }
                     ]
                 }
             ];
@@ -10461,18 +11175,55 @@
             bodyEl.appendChild(tkCard);
 
             const hasVipLife = hasActiveLifeInsurance();
+            const hasVipHealth = hasActiveHealthInsurance();
+            const bpjsUsedYr = player.bpjsTreatmentsThisYear || 0;
+            const penangUsedYr = player.penangTreatmentsThisYear || 0;
+            const bpjsQuotaLeft = Math.max(0, 2 - bpjsUsedYr);
+            const penangQuotaLeft = Math.max(0, 1 - penangUsedYr);
+            const curLifeIns = syncLifeInsuranceState();
+            const remDeathSum = getRemainingLifeSumAssured();
+
+            let vipCoverageNote = "";
+            if (hasVipLife) {
+                vipCoverageNote += `<br><b style="color:#16a34a;">🛡️ ${curLifeIns.name || 'Asuransi Jiwa VIP'} Aktif:</b> Premi <b>Rp ${getLifeInsuranceAnnualPremium()} Jt/thn</b> • Sisa Plafon Santunan Meninggal (setelah deductible): <b>${formatShortJuta(remDeathSum)}</b> (dari ${formatShortJuta(curLifeIns.sumAssured || 600)}).`;
+            }
+            if (hasVipHealth) {
+                const hi = player.healthInsurance;
+                vipCoverageNote += `<br><b style="color:#0284c7;">🏥 ${hi.name} Aktif:</b> Premi <b>Rp ${hi.annualPremium} Jt/thn</b> • Diskon RS Penang/SG: <b>${Math.round((hi.overseasDiscount || 0) * 100)}%</b>.`;
+            }
+            if (hasVipLife || hasVipHealth) {
+                vipCoverageNote += `<br><span style="color:#b45309;">⚠️ <i>Catatan Polis VIP: Jika VIP dipakai berobat ke Penang/SG, premi tahunan VIP akan naik otomatis dan klaim meninggal dunia akan dideductible sebesar klaim VIP yang terpakai.</i></span>`;
+            }
+
+            const penangBaseCost = 45;
+            let penangPreviewFee = penangBaseCost;
+            let penangBtnLabel = `Rp 45 Jt • Pemulihan Ekspres`;
+            if (hasVipLife) {
+                penangPreviewFee = 0;
+                penangBtnLabel = `GRATIS via ${curLifeIns.name || 'Asuransi Jiwa VIP'} (Premi Naik & Deductible)`;
+            } else if (hasVipHealth) {
+                const disc = player.healthInsurance.overseasDiscount || 0;
+                penangPreviewFee = roundMoney(penangBaseCost * (1 - disc));
+                penangBtnLabel = penangPreviewFee === 0
+                    ? `GRATIS via ${player.healthInsurance.name} (Premi Naik)`
+                    : `Rp ${penangPreviewFee} Jt (Diskon ${Math.round(disc * 100)}% ${player.healthInsurance.name} • Premi Naik)`;
+            }
+
             const rsCard = document.createElement("div");
             rsCard.className = "item-card";
             rsCard.innerHTML = `
                 <div class="item-title">🩺 Layanan Medis & Berobat ke Luar Negeri</div>
-                <div class="item-desc">Pilih fasilitas pengobatan sesuai kondisi kesehatanmu saat ini (Kesehatan: <b>${player.stats.health}%</b>):${hasVipLife ? '<br><b style="color:#16a34a;">🛡️ Polis Asuransi Jiwa VIP Aktif: Seluruh biaya medis & RS dicover 100% (Rp 0)!</b>' : ''}</div>
-                <button class="btn-action btn-primary" onclick="medicalTreatment('bpjs_rs')">
-                    🏥 Rawat Inap RSUD (${hasVipLife ? 'GRATIS — Tercover 100% Asuransi Jiwa VIP' : 'Rp 1,5 Jt / BPJS • Pemulihan Bertahap'})
+                <div class="item-desc">
+                    Pilih fasilitas pengobatan sesuai kondisi kesehatanmu saat ini (Kesehatan: <b>${player.stats.health}%</b>):${vipCoverageNote}
+                </div>
+                <button class="btn-action ${bpjsQuotaLeft > 0 ? 'btn-primary' : 'btn-dark'}" ${bpjsQuotaLeft <= 0 ? 'style="opacity:0.65;"' : ''} onclick="medicalTreatment('bpjs_rs')">
+                    🏥 Rawat Inap RSUD / BPJS [Kuota Tahun Ini: ${bpjsUsedYr}/2] (${hasVipLife ? 'GRATIS — Asuransi Jiwa VIP' : 'Rp 1,5 Jt / BPJS'})
                 </button>
-                <button class="btn-action btn-gold" onclick="medicalTreatment('penang')">
-                    ✈️ Medical Check-Up & Berobat ke Penang / Singapura (${hasVipLife ? 'GRATIS — Tercover 100% Asuransi Jiwa VIP!' : 'Rp 45 Jt • Pemulihan Ekspres!'})
+                <button class="btn-action ${penangQuotaLeft > 0 ? 'btn-gold' : 'btn-dark'}" ${penangQuotaLeft <= 0 ? 'style="opacity:0.65;"' : ''} onclick="medicalTreatment('penang')">
+                    ✈️ Medical Check-Up & Berobat ke Penang / SG [Kuota Tahun Ini: ${penangUsedYr}/1] (${penangBtnLabel})
                 </button>
-                ${hasVipLife ? `<button class="btn-action btn-rose" onclick="cancelLifeInsurancePolicy()">❌ Cancel Polis Asuransi Jiwa VIP</button>` : ''}
+                ${hasVipLife ? `<button class="btn-action btn-rose" onclick="cancelLifeInsurancePolicy()">❌ Cancel ${curLifeIns.name || 'Polis Asuransi Jiwa VIP'}</button>` : ''}
+                ${hasVipHealth ? `<button class="btn-action btn-rose" onclick="cancelHealthInsurancePolicy()">❌ Cancel ${player.healthInsurance.name}</button>` : ''}
             `;
             bodyEl.appendChild(rsCard);
 
@@ -11092,10 +11843,15 @@
                                 ${kipBadgeHtml}
                             </div>
                             <div class="item-title" style="font-size:14px; margin-top:2px;">${ch.name} ${ch.genderIcon} (${ch.age} Thn)</div>
-                            <div style="font-size:10px; color:#fcd34d; margin-top:2px;">
-                                Status: ${ch.age <= 5 ? 'Balita' : (ch.age <= 17 ? 'Pelajar Sekolah' : (ch.age <= 21 ? 'Mahasiswa / Remaja' : ch.jobTitle))}
-                                • Tabungan Anak: <b style="color:#34d399;">${formatShortJuta(ch.wealth || 0)}</b> ${ch.income > 0 ? `(+Rp ${ch.income} Jt/thn • Pajak -Rp ${chTax} Jt)` : ''}
+                            <div style="font-size:10px; color:#b45309; font-weight:800; margin-top:2px;">
+                                Status: ${ch.age <= 5 ? 'Balita' : (ch.age <= 17 ? `Pelajar (${ch.schoolTier === 'swasta' ? '🏫 Swasta Favorit' : '🏫 Negeri/Standar'})` : (ch.age <= 21 ? 'Mahasiswa / Remaja' : ch.jobTitle))}
+                                • Tabungan Anak: <b style="color:#15803d;">${formatShortJuta(ch.wealth || 0)}</b> ${ch.income > 0 ? `(+Rp ${ch.income} Jt/thn • Pajak -Rp ${chTax} Jt)` : ''}
                             </div>
+                            ${ch.age >= 6 && ch.age <= 17 && !(ch.kipActive && !ch.kipRevoked) ? `
+                                <button class="btn-action ${ch.schoolTier === 'swasta' ? 'btn-gold' : 'btn-dark'}" style="margin-top:4px; padding:5px 8px; font-size:10px;" onclick="toggleChildSchoolTier(${idx})">
+                                    🔄 Ubah Sekolah: Saat Ini ${ch.schoolTier === 'swasta' ? 'Swasta Favorit (Klik ke Negeri)' : 'Negeri/Standar (Klik ke Swasta Favorit)'}
+                                </button>
+                            ` : ''}
                             <div style="font-size:10px; color:#9ca3af;">Interaksi Tahun Ini: ${ch.relCountThisYear || 0}/${MAX_NPC_INTERACT_PER_YEAR}</div>
                         </div>
                     </div>
@@ -14156,31 +14912,107 @@
 
     function medicalTreatment(mode) {
         if (!player) return;
-        const coveredByVip = hasActiveLifeInsurance();
+        const coveredByVipLife = hasActiveLifeInsurance();
+        const coveredByVipHealth = hasActiveHealthInsurance();
+
         if (mode === "bpjs_rs") {
+            const usedBpjs = player.bpjsTreatmentsThisYear || 0;
+            if (usedBpjs >= 2) {
+                showToast("🚫 Kuota berobat RSUD / BPJS sudah habis (Maksimal 2x per tahun)! Tunggu tahun depan (+Age).");
+                return;
+            }
             const bpjsKes = syncPlayerBpjsKesehatanStatus();
             const baseFee = 1.5;
-            const finalFee = coveredByVip ? 0 : roundMoney(baseFee * (1 - bpjsKes.coverage));
+            let finalFee = roundMoney(baseFee * (1 - bpjsKes.coverage));
+            let vipCoveredAmt = 0;
+
+            if (coveredByVipLife) {
+                vipCoveredAmt = baseFee;
+                finalFee = 0;
+            } else if (coveredByVipHealth) {
+                const hCov = player.healthInsurance.coverage || 0.9;
+                vipCoveredAmt = roundMoney(baseFee * hCov);
+                finalFee = roundMoney(baseFee * (1 - hCov));
+            }
+
             if (player.money < finalFee) { showToast(`Saldo kurang ${formatShortJuta(finalFee)}!`); return; }
             if (finalFee > 0) player.money = roundMoney(player.money - finalFee);
+
+            player.bpjsTreatmentsThisYear = usedBpjs + 1;
+            if (coveredByVipLife && vipCoveredAmt > 0) {
+                const ins = player.lifeInsurance;
+                ins.totalClaimsDeducted = roundMoney((ins.totalClaimsDeducted || 0) + vipCoveredAmt);
+            }
+
             const gain = randInt(8, 18);
             modifyStats({ health: gain, happy: randInt(1, 4) });
-            addLog(coveredByVip
-                ? `🛡️ **RAWAT INAP RS (TERCOVER ASURANSI JIWA VIP):** Seluruh biaya perawatan rumah sakit **Rp 0 (Dicover 100%)** dan kesehatanmu membaik!`
-                : `🏥 **RAWAT INAP RS (${plan ? plan.name : 'Umum'}):** Kamu menjalani perawatan medis dengan biaya **-${formatShortJuta(finalFee)}** dan kesehatanmu membaik.`, "normal");
-            showToast(coveredByVip ? "Perawatan RS gratis (Asuransi Jiwa VIP)!" : "Perawatan RS selesai!");
+            const remDeath = getRemainingLifeSumAssured();
+            addLog(coveredByVipLife
+                ? `🛡️ **RAWAT INAP RS (${player.bpjsTreatmentsThisYear}/2 THN • ASURANSI JIWA VIP):** Biaya RS Rp ${baseFee} Jt dicover VIP (**Rp 0**). Sisa plafon santunan meninggal dunia: **${formatShortJuta(remDeath)}**.`
+                : `🏥 **RAWAT INAP RS (${player.bpjsTreatmentsThisYear}/2 THN • ${bpjsKes.label}):** Kamu menjalani perawatan medis dengan biaya **-${formatShortJuta(finalFee)}** dan kesehatanmu membaik.`, "normal");
+            showToast(coveredByVipLife ? `Perawatan RS gratis VIP (${player.bpjsTreatmentsThisYear}/2 thn)!` : `Perawatan RS selesai (${player.bpjsTreatmentsThisYear}/2 thn)!`);
         } else if (mode === "penang") {
-            const penangFee = coveredByVip ? 0 : 45;
-            if (player.money < penangFee) { showToast("Saldo kurang! Berobat ke Penang/Singapura butuh Rp 45 Jt."); return; }
+            const usedPenang = player.penangTreatmentsThisYear || 0;
+            if (usedPenang >= 1) {
+                showToast("🚫 Berobat ke Penang / Singapura dibatasi maksimal 1x per tahun! Tunggu tahun depan (+Age).");
+                return;
+            }
+
+            const basePenangFee = 45;
+            let penangFee = basePenangFee;
+            let vipCoveredAmt = 0;
+            let vipPenaltyLogs = [];
+
+            if (coveredByVipLife) {
+                vipCoveredAmt = basePenangFee;
+                penangFee = 0;
+            } else if (coveredByVipHealth) {
+                const disc = player.healthInsurance.overseasDiscount || 0.5;
+                vipCoveredAmt = roundMoney(basePenangFee * disc);
+                penangFee = roundMoney(basePenangFee - vipCoveredAmt);
+            }
+
+            if (player.money < penangFee) { showToast(`Saldo kurang! Berobat ke Penang/Singapura butuh ${formatShortJuta(penangFee)}.`); return; }
             if (penangFee > 0) player.money = roundMoney(player.money - penangFee);
+
+            player.penangTreatmentsThisYear = usedPenang + 1;
+
+            // Jika VIP pernah dipakai untuk berobat ke Penang:
+            // 1. Biaya premi asuransi VIP meningkat per tahun
+            // 2. Klaim meninggal dunia dideductible sebesar klaim yang pernah diajukan
+            if (coveredByVipLife && vipCoveredAmt > 0) {
+                const ins = player.lifeInsurance;
+                const oldPrem = ins.annualPremium || 25;
+                const premIncrease = Math.max(5, roundMoney(oldPrem * 0.25));
+                ins.annualPremium = roundMoney(oldPrem + premIncrease);
+                ins.penangClaimCount = (ins.penangClaimCount || 0) + 1;
+                ins.totalClaimsDeducted = roundMoney((ins.totalClaimsDeducted || 0) + vipCoveredAmt);
+                const newRemSum = getRemainingLifeSumAssured();
+                vipPenaltyLogs.push(`📈 Premi **${ins.name || 'Asuransi Jiwa VIP'}** naik dari Rp ${oldPrem} Jt ➔ **Rp ${ins.annualPremium} Jt/thn**`);
+                vipPenaltyLogs.push(`⚖️ Klaim meninggal dideductible **-${formatShortJuta(vipCoveredAmt)}** (Sisa santunan meninggal: **${formatShortJuta(newRemSum)}**)`);
+            }
+            if (coveredByVipHealth && vipCoveredAmt > 0) {
+                const hIns = player.healthInsurance;
+                const oldHPrem = hIns.annualPremium || 10;
+                const hPremInc = Math.max(4, roundMoney(oldHPrem * 0.25));
+                hIns.annualPremium = roundMoney(oldHPrem + hPremInc);
+                hIns.penangClaimCount = (hIns.penangClaimCount || 0) + 1;
+                vipPenaltyLogs.push(`📈 Premi **${hIns.name}** naik dari Rp ${oldHPrem} Jt ➔ **Rp ${hIns.annualPremium} Jt/thn**`);
+            }
+
             const gain = randInt(25, 45);
             modifyStats({ health: gain, happy: randInt(6, 12), looks: randInt(2, 5) });
-            addLog(coveredByVip
-                ? `🛡️ **BEROBAT KE PENANG / SINGAPURA (ASURANSI JIWA VIP):** Seluruh biaya rumah sakit luar negeri senilai Rp 45 Jt **dicover 100% (Rp 0)** dan kesehatanmu pulih drastis!`
-                : `✈️ **BEROBAT KE PENANG / SINGAPURA:** Penanganan dokter spesialis luar negeri (-Rp 45 Jt) membuat staminamu pulih drastis!`, "love");
-            showToast(coveredByVip ? "Berobat Penang/SG gratis (Asuransi Jiwa VIP)!" : "Pemulihan medis luar negeri sukses!");
+
+            if (vipCoveredAmt > 0) {
+                addLog(`🛡️ **BEROBAT KE PENANG / SINGAPURA (1/1 THN • KLAIM VIP):** Biaya medis luar negeri Rp ${basePenangFee} Jt dicover VIP sebesar **${formatShortJuta(vipCoveredAmt)}** (Bayar tunai: **${formatShortJuta(penangFee)}**). Kesehatan pulih drastis! Konsekuensi Polis VIP: ${vipPenaltyLogs.join(" • ")}.`, "love");
+                showToast("Berobat Penang VIP sukses! Premi tahunan VIP naik & deductible tercatat.");
+            } else {
+                addLog(`✈️ **BEROBAT KE PENANG / SINGAPURA (1/1 THN):** Penanganan dokter spesialis luar negeri (**-Rp ${penangFee} Jt**) membuat staminamu pulih drastis!`, "love");
+                showToast("Pemulihan medis luar negeri sukses (1/1 thn)!");
+            }
         }
         renderUpgradeSheet("kesehatan");
+        updateUI();
     }
 
     function upgradeBusinessAsset(assetIdx) {
