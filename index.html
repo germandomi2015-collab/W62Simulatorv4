@@ -1648,6 +1648,9 @@
                 logEl.scrollTop = logEl.scrollHeight;
             }
             enforceRomanceGenderRule();
+            if (player && Array.isArray(player.resilientInformalJobs) && player.resilientInformalJobs.length > 1) {
+                player.resilientInformalJobs = [player.resilientInformalJobs[0]];
+            }
 
             document.getElementById("splashModal").classList.add("hidden");
             document.getElementById("birthModal").classList.add("hidden");
@@ -3871,13 +3874,14 @@
             player.money = roundMoney(player.money - ij.reqCapital);
         }
         if (!Array.isArray(player.resilientInformalJobs)) player.resilientInformalJobs = [];
-        if (player.resilientInformalJobs.some(x => x.id === ij.id)) {
-            showToast(`Kamu sudah menjalankan ${ij.title}!`);
+        if (player.resilientInformalJobs.length > 0) {
+            const curInf = player.resilientInformalJobs[0];
+            showToast(`Kamu hanya bisa menjalankan 1 pekerjaan informal sekaligus! Berhenti dulu dari ${curInf.title}.`);
             return;
         }
         const resilientSalary = roundMoney(ij.salary * 0.85);
         player.resilientInformalJobs.push({ ...ij, salary: resilientSalary });
-        addLog(`🛠️ **INFORMAL TAHAN BANTING:** Kamu memulai **${ij.icon} ${ij.title}** (+Rp ${resilientSalary} Jt/thn) yang tetap terbuka meski pernah berurusan dengan hukum/penjara.`, "career");
+        addLog(`🛠️ **INFORMAL TAHAN BANTING:** Kamu memulai **${ij.icon} ${ij.title}** (+Rp ${resilientSalary} Jt/thn). Hanya 1 usaha informal aktif pada satu waktu.`, "career");
         showToast(`Mulai ${ij.title}!`);
         renderKarirSheet("informal_resilient");
     }
@@ -8285,6 +8289,7 @@
             infHead.innerHTML = `<div class="item-title">🛠️ Pekerjaan Informal Tahan Banting (Tetap Buka Walau Pernah Dipenjara)</div>`;
             bodyEl.appendChild(infHead);
 
+            const hasAnyResilientInf = (player.resilientInformalJobs || []).length > 0;
             INFORMAL_JOBS.forEach((ij, idx) => {
                 const isActive = (player.resilientInformalJobs || []).some(x => x.id === ij.id);
                 const sal = roundMoney(ij.salary * 0.85);
@@ -8293,10 +8298,12 @@
                 if (isActive) card.style.borderColor = "#16a34a";
                 card.innerHTML = `
                     <div class="item-title">${ij.icon} ${ij.title} (+Rp ${sal} Jt/thn)</div>
-                    <div class="item-desc">${ij.desc}<br><b>Modal:</b> ${ij.reqCapital > 0 ? `Rp ${ij.reqCapital} Jt` : 'Gratis'} • <b>Status Penjara:</b> Tidak Berpengaruh</div>
+                    <div class="item-desc">${ij.desc}<br><b>Modal:</b> ${ij.reqCapital > 0 ? `Rp ${ij.reqCapital} Jt` : 'Gratis'} • <b>Aturan:</b> Maks. 1 usaha informal aktif</div>
                     ${isActive
                         ? `<button class="btn-action btn-rose" onclick="quitResilientInformalJob('${ij.id}')">🛑 Berhenti</button>`
-                        : `<button class="btn-action btn-emerald" onclick="takeResilientInformalJob(${idx})">🛠️ Jalankan Usaha Informal Ini</button>`}
+                        : (hasAnyResilientInf
+                            ? `<button class="btn-action btn-dark" style="opacity:0.65;" onclick="takeResilientInformalJob(${idx})">🔒 Berhenti Usaha Informal Aktif Dulu</button>`
+                            : `<button class="btn-action btn-emerald" onclick="takeResilientInformalJob(${idx})">🛠️ Jalankan Usaha Informal Ini</button>`)}
                 `;
                 bodyEl.appendChild(card);
             });
