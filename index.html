@@ -3707,8 +3707,7 @@
     }
 
     function applySpecialReqJob(specIdx) {
-        if (!player || player.retired) return;
-        ensurePlayerSimAndEyes();
+                ensurePlayerSimAndEyes();
         if (hasCriminalRecord()) {
             showToast("Ditolak! Catatan pernah dipenjara membuatmu tidak bisa diterima kerja formal.");
             return;
@@ -3777,8 +3776,7 @@
     }
 
     function applyGeneralMajorJob(genIdx, requestedHours = 40) {
-        if (!player || player.retired) return;
-        if (hasCriminalRecord()) {
+                if (hasCriminalRecord()) {
             showToast("Ditolak! Catatan pernah dipenjara membuatmu tidak bisa diterima kerja formal.");
             return;
         }
@@ -3801,6 +3799,10 @@
         }
         if (jb.reqDegreeLevel === 2 && !hasS2 && !hasS3) {
             showToast(`Jabatan ${jb.title} wajib memiliki ijazah Magister S2!`);
+            return;
+        }
+        if (jb.reqDegreeLevel === 3 && !hasS3) {
+            showToast(`Jabatan ${jb.title} wajib memiliki ijazah Doktor S3!`);
             return;
         }
         if (jb.majorId && player.majorId !== jb.majorId) {
@@ -4320,8 +4322,7 @@
     }
 
     function takeSocialMediaJob(idx) {
-        if (!player || player.retired) return;
-        const sm = SOCIAL_MEDIA_JOBS[idx];
+                const sm = SOCIAL_MEDIA_JOBS[idx];
         if (!sm) return;
         if (player.age < sm.minAge) {
             showToast(`Minimal berusia ${sm.minAge} tahun untuk pekerjaan media sosial ini!`);
@@ -4361,8 +4362,7 @@
     }
 
     function takeResilientInformalJob(idx) {
-        if (!player || player.retired) return;
-        if (player.age < 15) {
+                if (player.age < 15) {
             showToast("Minimal berusia 15 tahun untuk bekerja di sektor informal!");
             return;
         }
@@ -4407,8 +4407,7 @@
     }
 
     function takeNegativeSpecialJob(idx) {
-        if (!player || player.retired || player.inJail) return;
-        const ns = NEGATIVE_SPECIAL_JOBS[idx];
+                const ns = NEGATIVE_SPECIAL_JOBS[idx];
         if (!ns) return;
         if (player.age < ns.minAge) {
             showToast(`Minimal berusia ${ns.minAge} tahun!`);
@@ -4878,7 +4877,7 @@
     }
 
     function trainSpecialCareer(category) {
-        if (!player || player.age < 12 || player.retired) {
+        if (!player || player.age < 12) {
             showToast("Latihan jalur karier terbuka mulai usia 12 tahun.");
             return;
         }
@@ -6251,8 +6250,9 @@
         const earnedJt = roundMoney(Math.max(0.4, ((acc.followers || 1000) / 1000) * plat.valuePerThousand * randInt(2, 6)));
         const lostF = Math.random() < 0.35 ? randInt(15, 90) : 0;
         acc.followers = Math.max(0, (acc.followers || 0) - lostF);
+        player.annualEndorseIncome = roundMoney((player.annualEndorseIncome || 0) + earnedJt);
         modifyStats({ money: earnedJt, happy: randInt(2, 5) });
-        addLog(`📈 **[${plat.name}] PROMOTE PRODUK:** Kamu mempromosikan produk di **${plat.name}** dan cair penghasilan **+${formatShortJuta(earnedJt)}**${lostF > 0 ? ` (sebagian pengikut unfollow -${lostF})` : ''}!`, "money");
+        addLog(`📈 **[${plat.name}] PROMOTE PRODUK / ENDORSE:** Kamu mempromosikan produk di **${plat.name}** dan cair **+${formatShortJuta(earnedJt)}** (Akumulasi Endorse Tahun Ini: **Rp ${player.annualEndorseIncome} Jt** — masuk perhitungan pajak tahunan)${lostF > 0 ? ` (unfollow -${lostF})` : ''}!`, "money");
         showToast(`💰 Dapat +${formatShortJuta(earnedJt)} dari ${plat.name}!`);
         renderPersonalSocialManageModal(platId);
         updateUI();
@@ -7532,6 +7532,8 @@
                 ptkpCode: "Belum Wajib Pajak",
                 ptkpAmount: 54,
                 grossJobIncome: 0,
+                socialMediaAnnual: 0,
+                endorseAnnual: 0,
                 pkp: 0,
                 pph21: 0,
                 umkmTax: 0,
@@ -7551,7 +7553,11 @@
         const ptkpAmount = 54 + (isMarried ? 4.5 : 0) + (dependentKids * 4.5); // Maks Rp 72 Juta/thn (K/3)
 
         const sideJobAnnual = getSideJobsAnnualIncome();
-        const grossJob = (player.job ? player.salary : (player.retired ? player.pension : 0)) + sideJobAnnual;
+        const socialMediaAnnual = getSocialMediaAnnualIncome();
+        const resilientInformalAnnual = getResilientInformalAnnualIncome();
+        const endorseAnnual = roundMoney(player.annualEndorseIncome || 0);
+        const mainAndPension = (player.job ? player.salary : 0) + (player.retired ? (player.pension || 0) : 0);
+        const grossJob = roundMoney(mainAndPension + sideJobAnnual + socialMediaAnnual + resilientInformalAnnual + endorseAnnual);
         const isUmkmJob = player.job && player.job.taxType === "umkm";
 
         let pkp = 0;
@@ -7656,6 +7662,8 @@
             ptkpCode,
             ptkpAmount,
             grossJobIncome: grossJob,
+            socialMediaAnnual,
+            endorseAnnual,
             pkp,
             pph21,
             umkmTax,
@@ -9433,7 +9441,7 @@
                 player.job = null;
                 player.jobHours = 0;
                 player.salary = 0;
-                addLog(`🧓 **RESMI PENSIUN (60 TAHUN):** Kamu purna tugas dari jabatan **${oldTitle}**. Menerima Uang Pesangon/JHT **+Rp ${pesangon} Jt** serta uang pensiun rutin **+Rp ${player.pension} Jt/tahun**!`, "career");
+                addLog(`🧓 **RESMI PENSIUN (60 TAHUN):** Kamu purna tugas dari jabatan **${oldTitle}**. Menerima Uang Pesangon/JHT **+Rp ${pesangon} Jt** serta uang pensiun rutin **+Rp ${player.pension} Jt/tahun**! Kamu tetap bebas bekerja sampai meninggal dunia.`, "career");
             } else {
                 player.pension = 6;
                 addLog("🧓 **MEMASUKI MASA PENSIUN (60 TAHUN):** Kamu mendapatkan tunjangan lansia **+Rp 6 Jt/tahun**.", "career");
@@ -9505,6 +9513,7 @@
         const livInfo = calculateDetailedLivingAndKprSummary();
         const net = getAnnualNetCashflow();
         player.money = Math.round((player.money + net) * 10) / 10;
+        player.annualEndorseIncome = 0; // Reset akumulasi endorse tahun berjalan setelah pajak tahunan dihitung
 
         // Efek Stat Tahunan dari Mode Gaya Hidup
         if (player.age >= 18) {
@@ -9717,7 +9726,8 @@
             const sideInc = getSideJobsAnnualIncome();
             addLog(`⏱️ **KERJA SAMPINGAN (${getUsedWorkHours()}/60 Jam/Mgg):** Kamu mengumpulkan **+Rp ${sideInc} Jt/thn** dari ${player.sideJobs.length} kerja sampingan per jam. Cashflow bersih: **${net >= 0 ? "+" : ""}Rp ${net} Jt**.`, "money");
         } else if (player.retired) {
-            addLog(`🧓 Menikmati masa pensiun di ${player.city.name}. Arus kas bersih: **${net >= 0 ? "+" : ""}Rp ${net} Jt**.`, "money");
+            const workNote = (player.job || (player.sideJobs && player.sideJobs.length > 0) || (player.resilientInformalJobs && player.resilientInformalJobs.length > 0)) ? " (sambil tetap aktif bekerja)" : "";
+            addLog(`🧓 Menikmati masa pensiun di ${player.city.name}${workNote}. Arus kas bersih: **${net >= 0 ? "+" : ""}Rp ${net} Jt**.`, "money");
         } else if (player.age >= 19 && !player.inCollege) {
             modifyStats({ happy: -4, social: -3 });
             addLog(`😅 Menganggur di usia ${player.age} tahun. Tagihan hidup & pajak aset jalan terus: **Rp ${net} Jt**.`, "anomaly");
@@ -10359,6 +10369,161 @@
         `;
         bodyEl.innerHTML = "";
 
+        // TAB PEJABAT POLITIK & PARTAI POLITIK (KETUA RT S/D PRESIDEN RI +62)
+        if (tab === "pejabat") {
+            if (hasCriminalRecord()) {
+                bodyEl.innerHTML = `<div class="item-card" style="border-color:#dc2626; background:#fef2f2;"><div class="item-title" style="color:#b91c1c;">⛓️ Hak Politik Dicabut (Catatan Penjara)</div><div class="item-desc">Mantan narapidana tidak memenuhi syarat pencalonan pejabat publik dan pengurus partai politik.</div></div>`;
+                return;
+            }
+
+            const polIntro = document.createElement("div");
+            polIntro.className = "item-card";
+            polIntro.style.background = "#090d16";
+            polIntro.style.borderColor = "#f59e0b";
+            polIntro.innerHTML = `
+                <div class="item-title" style="color:#fbbf24;">🏛️ Karir Pejabat Publik & Partai Politik +62</div>
+                <div class="item-desc" style="color:#e5e7eb;">
+                    Bangun karir politik berjenjang dari <b>Ketua RT ➔ Lurah/Kades ➔ Walikota/Bupati ➔ Gubernur ➔ Presiden RI +62</b> (maksimal 2 periode per jabatan, 5 tahun/periode).<br>
+                    • Kendaraan Partai Saat Ini: <b style="color:#34d399;">${player.politicalParty ? `${player.politicalParty.name} (+${Math.round((player.politicalParty.powerBonus || 0) * 100)}% Elektabilitas)` : 'Independen (Belum Berpartai)'}</b>
+                </div>
+                ${player.job && player.job.isGov ? `<button class="btn-action btn-rose" style="margin-top:4px;" onclick="resignGovJob()">🚪 Mundur dari Jabatan ${player.job.title}</button>` : ''}
+            `;
+            bodyEl.appendChild(polIntro);
+
+            // Seksi 1: Partai Politik (Wajib untuk Walikota, Gubernur & Presiden)
+            const partyHdr = document.createElement("div");
+            partyHdr.className = "item-card";
+            partyHdr.style.borderColor = "#9333ea";
+            partyHdr.innerHTML = `
+                <div class="item-title">🎗️ Kendaraan Partai Politik (Wajib untuk Walikota, Gubernur & Presiden)</div>
+                <div class="item-desc">Bergabung dengan partai besar atau dirikan partai politikmu sendiri untuk mendongkrak elektabilitas pemilu.</div>
+            `;
+            bodyEl.appendChild(partyHdr);
+
+            POLITICAL_PARTIES.forEach((pt, pIdx) => {
+                const isJoined = player.politicalParty && player.politicalParty.id === pt.id;
+                const pCard = document.createElement("div");
+                pCard.className = "item-card";
+                if (isJoined) pCard.style.borderColor = "#16a34a";
+                pCard.innerHTML = `
+                    <div class="item-title">🎗️ ${pt.name} (${formatShortJuta(pt.fee)})</div>
+                    <div class="item-desc">${pt.desc}<br><b>Syarat:</b> Sosial ≥${pt.reqSocial}% • <b>Bonus Elektabilitas:</b> +${Math.round(pt.powerBonus * 100)}%</div>
+                    ${isJoined
+                        ? `<button class="btn-action btn-emerald" disabled>✅ Kendaraan Politik Aktif</button>`
+                        : `<button class="btn-action btn-gold" onclick="joinPoliticalParty(${pIdx})">🎗️ Gabung / Dirikan (${formatShortJuta(pt.fee)})</button>`}
+                `;
+                bodyEl.appendChild(pCard);
+            });
+
+            // Seksi 2: Pemilihan Pejabat Publik Berjenjang
+            const govHdr = document.createElement("div");
+            govHdr.className = "item-card";
+            govHdr.style.borderColor = "#0284c7";
+            govHdr.innerHTML = `
+                <div class="item-title">🗳️ Pemilihan Jabatan Publik Berjenjang</div>
+                <div class="item-desc">Setiap jabatan harus ditempuh berurutan dari bawah ke atas (maksimal 2 periode per jabatan).</div>
+            `;
+            bodyEl.appendChild(govHdr);
+
+            GOV_ROLES.forEach(gr => {
+                const termsDone = (player.govHistory && player.govHistory[gr.id]) ? player.govHistory[gr.id] : 0;
+                const isCurGov = player.job && player.job.isGov && player.job.id === gr.id;
+                const prevDef = gr.prevReq ? GOV_ROLES.find(x => x.id === gr.prevReq) : null;
+                const needParty = gr.id === "walikota" || gr.id === "gubernur" || gr.id === "presiden";
+
+                const reqs = [
+                    `Usia ${gr.minAge}–${gr.maxAge} Thn`,
+                    `Sosial ≥${gr.reqSocial}%`,
+                    gr.reqEdu > 0 ? `Pintar ≥${gr.reqEdu}%` : null,
+                    gr.reqDegreeLevel >= 1 ? `Wajib S1` : null,
+                    prevDef ? `Pernah Jabat ${prevDef.title}` : null,
+                    needParty ? `Wajib Berpartai` : null
+                ].filter(Boolean).join(" • ");
+
+                const gCard = document.createElement("div");
+                gCard.className = "item-card";
+                if (isCurGov) gCard.style.borderColor = "#16a34a";
+                gCard.innerHTML = `
+                    <div class="item-row">
+                        <div>
+                            <span style="font-size:9.5px; font-weight:900; color:#0284c7;">GAJI: Rp ${gr.salary} Jt/thn • RIWAYAT: ${termsDone}/2 PERIODE</span>
+                            <div class="item-title" style="margin-top:2px;">${gr.icon} ${gr.title}</div>
+                            <div class="item-desc">${gr.desc}<br><b>Syarat:</b> ${reqs}</div>
+                        </div>
+                    </div>
+                    ${isCurGov
+                        ? `<button class="btn-action btn-emerald" disabled>🏛️ Sedang Menjabat (Tahun ${player.govTermYears}/5 • Periode ${player.govTermCount})</button>`
+                        : (termsDone >= 2
+                            ? `<button class="btn-action btn-dark" disabled>🔒 Batas Maksimal 2 Periode Tercapai</button>`
+                            : `<button class="btn-action btn-primary" onclick="runForOffice('${gr.id}')">🗳️ Maju Pencalonan (Dana Kampanye ${formatShortJuta(gr.reqMoney)})</button>`)}
+                `;
+                bodyEl.appendChild(gCard);
+            });
+            return;
+        }
+
+        // TAB KARIR BINTANG (SENIMAN, ATLET, TOP MODEL & PENYANYI POP)
+        if (tab === "bintang") {
+            if (hasCriminalRecord()) {
+                bodyEl.innerHTML = `<div class="item-card" style="border-color:#dc2626; background:#fef2f2;"><div class="item-title" style="color:#b91c1c;">⛓️ Karir Bintang Ditutup (Catatan Penjara)</div><div class="item-desc">Skandal catatan penjara membuat agensi dan federasi olahraga menolak kontrakmu.</div></div>`;
+                return;
+            }
+            if (player.age < 15) {
+                bodyEl.innerHTML = `<div class="item-card"><div class="item-title">🔞 Belum Cukup Umur Audisi Karir Bintang</div><div class="item-desc">Audisi Atlet, Model, Penyanyi & Artis Galeri dibuka mulai usia <b>15 tahun</b>!</div></div>`;
+                return;
+            }
+
+            appendWorkHoursHeaderCard();
+
+            const starIntro = document.createElement("div");
+            starIntro.className = "item-card";
+            starIntro.style.background = "#090d16";
+            starIntro.innerHTML = `
+                <div class="item-title" style="color:#fbbf24;">🌟 Karir Bintang & Jalur Spesial (40 Jam/Minggu)</div>
+                <div class="item-desc" style="color:#e5e7eb;">
+                    Bangun ketenaran dan latih skill setiap tahun untuk menaikkan jenjang karir dan nilai kontrakmu!
+                </div>
+            `;
+            bodyEl.appendChild(starIntro);
+
+            SPECIAL_CAREERS.forEach((sc, sIdx) => {
+                const isCur = player.job && player.job.id === sc.id;
+                const prog = getCareerProgress(sc.category);
+                const stages = getCareerStages(sc.category);
+                const stIdx = getCareerStageIndex(prog);
+                const estSalary = calcSpecialCareerSalary(sc);
+
+                const reqs = [
+                    `Usia ${sc.minAge}–${sc.maxAge} Thn`,
+                    `Sehat ≥${sc.reqHealth}%`,
+                    `Sosial ≥${sc.reqSocial}%`,
+                    sc.reqLooks > 0 ? `Looks ≥${sc.reqLooks}%` : null,
+                    sc.reqEdu > 0 ? `Pintar ≥${sc.reqEdu}%` : null
+                ].filter(Boolean).join(" • ");
+
+                const sCard = document.createElement("div");
+                sCard.className = "item-card";
+                if (isCur) sCard.style.borderColor = "#16a34a";
+                sCard.innerHTML = `
+                    <div class="item-row">
+                        <div>
+                            <span style="font-size:9.5px; font-weight:900; color:#d97706;">ESTIMASI KONTRAK: Rp ${estSalary} Jt/thn • TAHAP: ${stages[stIdx].toUpperCase()}</span>
+                            <div class="item-title" style="margin-top:2px;">${sc.icon} ${sc.title}</div>
+                            <div class="item-desc">${sc.desc}<br><b>Syarat:</b> ${reqs}</div>
+                        </div>
+                    </div>
+                    ${isCur
+                        ? `<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                            <button class="btn-action btn-gold" onclick="trainSpecialCareer('${sc.category}')">🔥 Latihan & Tingkatkan Skill</button>
+                            <button class="btn-action btn-rose" onclick="resignMainJob()">🚪 Putus Kontrak</button>
+                           </div>`
+                        : `<button class="btn-action btn-primary" onclick="applySpecialCareer(${sIdx})">🌟 Ikuti Audisi ${sc.title}</button>`}
+                `;
+                bodyEl.appendChild(sCard);
+            });
+            return;
+        }
+
         // TAB UJIAN SIM (SIM A, SIM C, SIM B1 PERSEORANGAN/UMUM & SIM B2 PERSEORANGAN/UMUM — 10 SOAL UNIK MASING-MASING, LULUS >= 80%)
         if (tab === "sim") {
             ensurePlayerSimAndEyes();
@@ -10445,6 +10610,13 @@
 
         // KATEGORI 5: JOB MEDIA SOSIAL
         if (tab === "medsos") {
+            if (player.retired) {
+                const mRet = document.createElement("div");
+                mRet.className = "item-card";
+                mRet.style.borderColor = "#f59e0b";
+                mRet.innerHTML = `<div class="item-title">🧓 Mode Lansia Produktif (Pensiun + Tetap Bisa Kerja!)</div><div class="item-desc">Uang pensiunmu (<b>+Rp ${player.pension} Jt/thn</b>) tetap cair sambil kamu aktif berkarya di media sosial hingga tutup usia.</div>`;
+                bodyEl.appendChild(mRet);
+            }
             if (player.age < 15) {
                 bodyEl.innerHTML = `
                     <div class="item-card" style="border-color:#dc2626; background:#fef2f2;">
@@ -10521,7 +10693,7 @@
                     <div class="item-title">${ij.icon} ${ij.title}</div>
                     <div style="font-size:11px; color:#15803d; font-weight:800;">Utama 40j: Rp ${ij.salary} Jt/thn • Utama 20j: Rp ${ptSal} Jt/thn • Sampingan Informal 15j: Rp ${sal15} Jt/thn</div>
                     <div class="item-desc">${ij.desc}<br><b>Modal Awal:</b> ${ij.reqCapital > 0 ? `Rp ${ij.reqCapital} Jt` : 'Gratis (Modal Dengkul)'} • <b>Jam Kerja:</b> ${curTotalHrsInf}/60 Jam/mgg</div>
-                    ${player.age >= 18 && !hasCriminalRecord() && !player.retired ? `
+                    ${player.age >= 18 && !hasCriminalRecord() ? `
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:4px;">
                         <button class="btn-action ${isMainCur && player.jobHours === 40 ? 'btn-emerald' : 'btn-gold'}" onclick="applyInformalJob(${idx}, 40)">
                             🍢 Utama Full-Time (40j)
@@ -10573,8 +10745,11 @@
                 return;
             }
             if (player.retired) {
-                bodyEl.innerHTML = `<div class="item-card"><div class="item-title">🧓 Status Pensiunan (${player.age} Thn)</div><div class="item-desc">Kamu sudah pensiun dengan uang pensiun Rp ${player.pension} Jt/tahun.</div></div>`;
-                return;
+                const pBanner = document.createElement("div");
+                pBanner.className = "item-card";
+                pBanner.style.borderColor = "#f59e0b";
+                pBanner.innerHTML = `<div class="item-title">🧓 Mode Lansia Produktif (Pensiun + Tetap Bisa Kerja!)</div><div class="item-desc">Kamu sudah pensiun (<b>+Rp ${player.pension} Jt/thn</b>), namun tetap bebas bekerja sampai tutup usia!</div>`;
+                bodyEl.appendChild(pBanner);
             }
 
             appendWorkHoursHeaderCard();
@@ -10640,8 +10815,11 @@
                 return;
             }
             if (player.retired) {
-                bodyEl.innerHTML = `<div class="item-card"><div class="item-title">🧓 Status Pensiunan (${player.age} Thn)</div><div class="item-desc">Kamu telah pensiun dengan dana pensiun Rp ${player.pension} Jt/tahun.</div></div>`;
-                return;
+                const gBanner = document.createElement("div");
+                gBanner.className = "item-card";
+                gBanner.style.borderColor = "#f59e0b";
+                gBanner.innerHTML = `<div class="item-title">🧓 Mode Lansia Produktif (Pensiun + Tetap Bisa Kerja!)</div><div class="item-desc">Uang pensiunmu (<b>+Rp ${player.pension} Jt/thn</b>) tetap cair sambil kamu bekerja hingga tutup usia.</div>`;
+                bodyEl.appendChild(gBanner);
             }
 
             appendWorkHoursHeaderCard();
@@ -10769,8 +10947,11 @@
                 return;
             }
             if (player.retired) {
-                bodyEl.innerHTML = `<div class="item-card"><div class="item-title">🧓 Status Pensiunan (${player.age} Thn)</div><div class="item-desc">Kamu telah pensiun dan menerima dana pensiun rutin Rp ${player.pension} Jt/tahun.</div></div>`;
-                return;
+                const kBanner = document.createElement("div");
+                kBanner.className = "item-card";
+                kBanner.style.borderColor = "#f59e0b";
+                kBanner.innerHTML = `<div class="item-title">🧓 Mode Lansia Produktif (Pensiun + Tetap Bisa Kerja!)</div><div class="item-desc">Meski sudah pensiun (<b>+Rp ${player.pension} Jt/thn</b>), kamu masih bisa melamar & bekerja sampai meninggal dunia!</div>`;
+                bodyEl.appendChild(kBanner);
             }
 
             appendWorkHoursHeaderCard();
@@ -11403,7 +11584,9 @@
                 </div>
                 <div class="item-title" style="font-size:14px; margin-top:4px;">Status PTKP: ${tx.ptkpCode} (Bebas Pajak s/d Rp ${tx.ptkpAmount} Jt/thn)</div>
                 <div style="background:#090d16; border:1px solid #374151; border-radius:10px; padding:10px; font-size:11px; display:flex; flex-direction:column; gap:5px; margin-top:4px;">
-                    <div style="display:flex; justify-content:space-between;"><span>Penghasilan Bruto Pekerjaan:</span><b>Rp ${tx.grossJobIncome} Jt/thn</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>Total Penghasilan Bruto (Kerja + Medsos + Endorse):</span><b>Rp ${tx.grossJobIncome} Jt/thn</b></div>
+                    ${tx.socialMediaAnnual > 0 ? `<div style="display:flex; justify-content:space-between; color:#38bdf8;"><span>• Termasuk Job Media Sosial:</span><b>Rp ${tx.socialMediaAnnual} Jt/thn</b></div>` : ''}
+                    ${tx.endorseAnnual > 0 ? `<div style="display:flex; justify-content:space-between; color:#fbbf24;"><span>• Termasuk Endorse / Promote Tahun Ini:</span><b>Rp ${tx.endorseAnnual} Jt/thn</b></div>` : ''}
                     <div style="display:flex; justify-content:space-between;"><span>Penghasilan Kena Pajak (PKP):</span><b>Rp ${tx.pkp} Jt/thn</b></div>
                     <div style="display:flex; justify-content:space-between;"><span>PPh Pasal 21 (Progresif UU HPP):</span><b style="color:#f87171;">-Rp ${tx.pph21} Jt/thn</b></div>
                     <div style="display:flex; justify-content:space-between;"><span>PPh Final UMKM 0,5% (PP 55/2022):</span><b style="color:#f87171;">-Rp ${tx.umkmTax} Jt/thn</b></div>
@@ -11594,8 +11777,7 @@
     }
 
     function runForOffice(roleId) {
-        if (!player || player.retired) return;
-        if (hasCriminalRecord()) {
+                if (hasCriminalRecord()) {
             showToast("Ditolak! Catatan pernah dipenjara membuatmu tidak bisa diterima kerja lagi.");
             return;
         }
@@ -11695,8 +11877,7 @@
     }
 
     function takeSideJob(ptIdx, hoursChosen) {
-        if (!player || player.retired) return;
-        if (hasCriminalRecord()) {
+                if (hasCriminalRecord()) {
             showToast("Ditolak! Catatan pernah dipenjara membuatmu tidak bisa diterima kerja lagi.");
             return;
         }
@@ -11758,8 +11939,7 @@
     }
 
     function applySpecialCareer(specIdx) {
-        if (!player || player.retired) return;
-        if (hasCriminalRecord()) {
+                if (hasCriminalRecord()) {
             showToast("Ditolak! Catatan pernah dipenjara membuatmu tidak bisa diterima kerja lagi.");
             return;
         }
@@ -11819,8 +11999,7 @@
     }
 
     function applyCityJob(jobIdx, useOrdal, requestedHours = 40) {
-        if (player.age < 18 || player.retired) return;
-        if (hasCriminalRecord()) {
+                if (hasCriminalRecord()) {
             showToast("Ditolak! Catatan pernah dipenjara membuatmu tidak bisa diterima kerja lagi.");
             return;
         }
@@ -11951,8 +12130,7 @@
     }
 
     function applyInformalJob(infIdx, requestedHours = 40) {
-        if (player.age < 18 || player.retired) return;
-        if (hasCriminalRecord()) {
+                if (hasCriminalRecord()) {
             showToast("Ditolak! Catatan pernah dipenjara membuatmu tidak bisa diterima kerja lagi.");
             return;
         }
@@ -17016,7 +17194,7 @@
             const bpjsCoveredAmt = roundMoney(baseFee * (bpjsKes.coverage || 0));
             const finalFee = roundMoney(baseFee - bpjsCoveredAmt);
 
-            if (player.money < finalFee) { showToast(`Saldo kurang ${formatShortJuta(finalFee)}!`); return; }
+            if (finalFee > 0 && player.money < finalFee) { showToast(`Saldo kurang ${formatShortJuta(finalFee)}!`); return; }
             if (finalFee > 0) player.money = roundMoney(player.money - finalFee);
 
             player.bpjsTreatmentsThisYear = usedBpjs + 1;
@@ -17044,7 +17222,7 @@
                 finalFee = roundMoney(baseSwastaFee - vipCoveredAmt);
             }
 
-            if (player.money < finalFee) { showToast(`Saldo kurang ${formatShortJuta(finalFee)} untuk RS Swasta VIP!`); return; }
+            if (finalFee > 0 && player.money < finalFee) { showToast(`Saldo kurang ${formatShortJuta(finalFee)} untuk RS Swasta VIP!`); return; }
             if (finalFee > 0) player.money = roundMoney(player.money - finalFee);
 
             player.swastaTreatmentsThisYear = usedSwasta + 1;
