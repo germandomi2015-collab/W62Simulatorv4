@@ -9854,6 +9854,9 @@
             }
         }
 
+        if (!ppdbTriggered && player.age >= 17 && Math.random() < 0.22) {
+            triggerIncomingFlirtEncounter();
+        }
         if (checkDeathConditions()) return;
 
         if (!ppdbTriggered) {
@@ -14626,22 +14629,40 @@
                                 player.partner = { ...c, status: "Menikah", rel: randInt(60, 82), relCountThisYear: 0 };
                                 player.inLaws = createInLawsForPartner(c.name, randInt(40, 65), c.tier);
                                 const baby = createRandomChild();
-                                player.children.push(baby);
                                 aliveParents.forEach(pr => { pr.rel = clamp(pr.rel + 10, 0, 100); });
                                 modifyStats({ happy: randInt(3, 9), social: randInt(1, 5) });
-                                addLog(`💍 **DINIKAHI RESMI & LAHIR ANAK:** Meski orang tua kandungmu sempat marah besar, **${c.name}** bertanggung jawab menikahimu (-Rp 10 Jt) dan kamu melahirkan bayi bernama **${baby.name}**!`, "birth");
-                                showToast(`Dinikahi oleh ${c.name} & punya anak!`);
+                                promptCustomBabyName(
+                                    "👶 Selamat! Buah Hati Lahir ke Dunia",
+                                    `Meski orang tua kandungmu sempat marah besar, <b>${c.name}</b> bertanggung jawab menikahimu (-Rp 10 Jt) dan kamu melahirkan seorang bayi <b>${baby.gender}</b>! Silakan beri nama anakmu:`,
+                                    baby.gender === "Laki-laki",
+                                    (chosenName) => {
+                                        baby.name = chosenName;
+                                        player.children.push(baby);
+                                        addLog(`💍 **DINIKAHI RESMI & LAHIR ANAK:** Meski orang tua kandungmu sempat marah besar, **${c.name}** bertanggung jawab menikahimu (-Rp 10 Jt) dan kamu melahirkan bayi bernama **${baby.name}**!`, "birth");
+                                        showToast(`Dinikahi oleh ${c.name} & anak bernama ${baby.name}!`);
+                                        updateUI();
+                                    }
+                                );
                             }
                         },
                         {
                             text: `👩‍👧 Tolak Menikah & Urus Anak Sendiri (Jadi Single Mom Tangguh)`,
                             fn: () => {
                                 const baby = createRandomChild();
-                                player.children.push(baby);
                                 player.exPartners.push({ ...c, reason: "Ayah Biologis (Tidak Menikah)", rel: randInt(25, 50), relCountThisYear: 0 });
                                 modifyStats({ happy: randInt(1, 6), social: -randInt(4, 10) });
-                                addLog(`👩‍👧 **SINGLE MOM TANGGUH:** Walau dimarahi habis-habisan oleh orang tua kandungmu, kamu memilih tidak menikah dengan **${c.name}** dan membesarkan buah hatimu **${baby.name}** seorang diri!`, "birth");
-                                showToast(`Melahirkan & mengurus ${baby.name} sendiri!`);
+                                promptCustomBabyName(
+                                    "👩‍👧 Kelahiran Buah Hati (Single Mom)",
+                                    `Walau dimarahi habis-habisan oleh orang tua kandungmu, kamu memilih tidak menikah dengan <b>${c.name}</b> dan melahirkan seorang bayi <b>${baby.gender}</b>. Beri nama buah hatimu:`,
+                                    baby.gender === "Laki-laki",
+                                    (chosenName) => {
+                                        baby.name = chosenName;
+                                        player.children.push(baby);
+                                        addLog(`👩‍👧 **SINGLE MOM TANGGUH:** Walau dimarahi habis-habisan oleh orang tua kandungmu, kamu memilih tidak menikah dengan **${c.name}** dan membesarkan buah hatimu **${baby.name}** seorang diri!`, "birth");
+                                        showToast(`Melahirkan & mengurus ${baby.name} sendiri!`);
+                                        updateUI();
+                                    }
+                                );
                             }
                         }
                     ],
@@ -14663,10 +14684,19 @@
                                 player.partner = { ...c, status: "Menikah", rel: randInt(60, 82), relCountThisYear: 0 };
                                 player.inLaws = createInLawsForPartner(c.name, randInt(45, 70), c.tier);
                                 const baby = createRandomChild();
-                                player.children.push(baby);
                                 modifyStats({ happy: randInt(2, 8), social: randInt(2, 6) });
-                                addLog(`💍 **NIKAH TANGGUNG JAWAB & LAHIR ANAK:** Kamu menikahi **${c.name}** secara resmi (-Rp 15 Jt) dan dikaruniai bayi bernama **${baby.name}**!`, "birth");
-                                showToast(`Menikahi ${c.name} & punya anak!`);
+                                promptCustomBabyName(
+                                    "👶 Selamat! Buah Hati Lahir ke Dunia",
+                                    `Kamu menikahi <b>${c.name}</b> secara resmi (-Rp 15 Jt) dan dikaruniai seorang bayi <b>${baby.gender}</b>! Silakan beri nama anakmu:`,
+                                    baby.gender === "Laki-laki",
+                                    (chosenName) => {
+                                        baby.name = chosenName;
+                                        player.children.push(baby);
+                                        addLog(`💍 **NIKAH TANGGUNG JAWAB & LAHIR ANAK:** Kamu menikahi **${c.name}** secara resmi (-Rp 15 Jt) dan dikaruniai bayi bernama **${baby.name}**!`, "birth");
+                                        showToast(`Menikahi ${c.name} & anak bernama ${baby.name}!`);
+                                        updateUI();
+                                    }
+                                );
                             }
                         },
                         {
@@ -15356,6 +15386,93 @@
     // =========================================================================
     // EVENT PERSELINGKUHAN (REKAN KERJA / TEMAN / MANTAN) & REAKSI PASANGAN SAH
     // =========================================================================
+
+    function triggerIncomingFlirtEncounter() {
+        if (!player || !player.alive || player.inJail) return false;
+        if (player.age < 17) return false;
+
+        const eligiblePool = [];
+        (player.friends || []).forEach(f => {
+            if (isEligibleRomanticPartner(f) && (f.age || 18) >= 17) {
+                eligiblePool.push({ person: f, sourceLabel: `${f.stage || "Kenalan / Teman"}`, fromSocmed: false });
+            }
+        });
+
+        let entry = null;
+        if (eligiblePool.length > 0 && Math.random() < 0.65) {
+            entry = pickRandom(eligiblePool);
+        } else {
+            const randPerson = createRandomPartner();
+            const socmedNames = ["Instagram", "TikTok", "X (Twitter)", "Facebook", "WhatsApp"];
+            const fromSocmed = Math.random() < 0.55;
+            entry = {
+                person: randPerson,
+                sourceLabel: fromSocmed ? `DM ${pickRandom(socmedNames)}` : "Orang Asing / Kenalan Baru",
+                fromSocmed
+            };
+        }
+
+        const admirer = entry.person;
+        const hasActiveAcc = Object.values(player.personalSocialAccounts || {}).find(a => a && !a.banned);
+
+        showPopupEvent(
+            "😉",
+            `Digoda Lewat ${entry.sourceLabel} oleh ${admirer.name}!`,
+            `<b>${admirer.name}</b> (${admirer.role} • ${admirer.tierBadge}) mengirimkan godaan genit lewat <b>${entry.sourceLabel}</b> dan memuji penampilan/kontenmu.<br><br>Bagaimana responsmu?`,
+            [
+                {
+                    text: `💬 Balas Godaan & Ajak Ketemu`,
+                    fn: () => {
+                        const charmScore = ((player.stats.looks || 50) + (player.stats.social || 50)) / 200;
+                        const roll = Math.random();
+                        if (!player.partner && isEligibleRomanticPartner(admirer) && roll < clamp(0.45 + charmScore * 0.25, 0.2, 0.78)) {
+                            player.partner = { ...admirer, status: "Pacaran", rel: randInt(58, 76), relCountThisYear: 0 };
+                            player.inLaws = createInLawsForPartner(admirer.name, null, admirer.tier);
+                            modifyStats({ happy: randInt(5, 11), social: randInt(2, 5) });
+                            playGameSound("love");
+                            addLog(`💘 **JADIAN DARI GODAAN:** Balasanmu membuat **${admirer.name}** (${entry.sourceLabel}) luluh dan resmi berpacaran denganmu!`, "love");
+                            showToast(`💘 Jadian dengan ${admirer.name}!`);
+                        } else if (roll < 0.75) {
+                            let followerNote = "";
+                            if (entry.fromSocmed && hasActiveAcc) {
+                                const plat = PERSONAL_SOCMED_PLATFORMS.find(p => p.id === hasActiveAcc.platformId);
+                                const gF = randInt(25, 140);
+                                hasActiveAcc.followers = (hasActiveAcc.followers || 0) + gF;
+                                followerNote = ` (+${gF.toLocaleString('id-ID')} ${plat ? plat.unitLabel : 'Followers'} di ${plat ? plat.name : 'Sosmed'})`;
+                            }
+                            modifyStats({ happy: randInt(3, 7), social: randInt(1, 4) });
+                            addLog(`😉 **OBROLAN SERU (${entry.sourceLabel}):** Kamu membalas godaan **${admirer.name}** dan ngobrol nyambung!${followerNote}`, "love");
+                            showToast(`😉 Obrolan seru dengan ${admirer.name}!`);
+                        } else {
+                            let lostNote = "";
+                            if (entry.fromSocmed && hasActiveAcc) {
+                                const plat = PERSONAL_SOCMED_PLATFORMS.find(p => p.id === hasActiveAcc.platformId);
+                                const lF = randInt(20, Math.max(50, Math.round((hasActiveAcc.followers || 100) * 0.10)));
+                                hasActiveAcc.followers = Math.max(0, (hasActiveAcc.followers || 0) - lF);
+                                lostNote = ` (-${lF.toLocaleString('id-ID')} ${plat ? plat.unitLabel : 'Followers'} karena drama/salah paham)`;
+                            }
+                            modifyStats({ happy: -randInt(2, 6), social: -randInt(2, 5) });
+                            addLog(`😅 **ZONK SAAT DIGODA:** Saat diajak ketemu, **${admirer.name}** (${entry.sourceLabel}) ternyata PHP atau memicu drama!${lostNote}`, "danger");
+                            showToast(`😅 Zonk/drama dengan ${admirer.name}!`);
+                        }
+                        updateUI();
+                    }
+                },
+                {
+                    text: "🙈 Cuekin & Tolak Halus",
+                    fn: () => {
+                        modifyStats({ happy: randInt(0, 2) });
+                        addLog(`🙈 Kamu memilih mengabaikan godaan dari **${admirer.name}** (${entry.sourceLabel}).`, "normal");
+                        showToast("Godaan diabaikan.");
+                        updateUI();
+                    }
+                }
+            ],
+            "😉 GODAAN MASUK"
+        );
+        return true;
+    }
+
     function triggerAffairTemptationEvent() {
         if (!player || !player.alive || !player.partner || player.inJail) return false;
         if (player.age < 18) return false;
