@@ -6053,16 +6053,88 @@
     ];
 
     const SOCMED_POST_TYPES = [
-        { id: "family_photo", label: "Foto Keluarga", risk: "low", followerGain: [18, 95], socialDelta: [1, 3], happyDelta: [1, 4], strikeDelta: 0 },
-        { id: "food_photo", label: "Foto Kuliner +62", risk: "low", followerGain: [25, 130], socialDelta: [0, 2], happyDelta: [2, 5], strikeDelta: 0 },
-        { id: "blog_thread", label: "Blog / Utas Cerita", risk: "low", followerGain: [30, 160], socialDelta: [1, 4], happyDelta: [0, 3], strikeDelta: 0 },
-        { id: "gaming_vlog", label: "Live Gaming / Vlog Harian", risk: "low", followerGain: [45, 220], socialDelta: [1, 3], happyDelta: [2, 6], strikeDelta: 0 },
-        { id: "selfie", label: "Selfie", risk: "medium", followerGain: [20, 180], socialDelta: [0, 3], happyDelta: [1, 4], strikeDelta: 0 },
-        { id: "dance_challenge", label: "Dance / Challenge Video", risk: "medium", followerGain: [60, 340], socialDelta: [1, 5], happyDelta: [2, 6], strikeDelta: 0 },
-        { id: "social_justice", label: "Opini Panas / Social Justice", risk: "high", followerGain: [-120, 650], socialDelta: [-4, 6], happyDelta: [-3, 4], strikeDelta: 1 },
-        { id: "sexy_pic", label: "Foto Provokatif (Sexy Pic)", risk: "high", followerGain: [-150, 720], socialDelta: [-3, 5], happyDelta: [1, 6], strikeDelta: 1 },
-        { id: "prank_ekstrem", label: "Prank & Konten Kontroversial", risk: "extreme", followerGain: [-250, 950], socialDelta: [-8, 5], happyDelta: [-4, 6], strikeDelta: 2 }
+        { id: "family_photo", label: "Foto Keluarga", risk: "low", followerGain: [-25, 95], socialDelta: [-1, 3], happyDelta: [-1, 4], strikeDelta: 0, critChance: 0.14 },
+        { id: "food_photo", label: "Foto Kuliner +62", risk: "low", followerGain: [-35, 130], socialDelta: [-1, 2], happyDelta: [-1, 5], strikeDelta: 0, critChance: 0.16 },
+        { id: "blog_thread", label: "Blog / Utas Cerita", risk: "low", followerGain: [-55, 160], socialDelta: [-2, 4], happyDelta: [-2, 3], strikeDelta: 0, critChance: 0.24 },
+        { id: "gaming_vlog", label: "Live Gaming / Vlog Harian", risk: "low", followerGain: [-65, 220], socialDelta: [-2, 3], happyDelta: [-1, 6], strikeDelta: 0, critChance: 0.22 },
+        { id: "selfie", label: "Selfie", risk: "medium", followerGain: [-80, 180], socialDelta: [-2, 3], happyDelta: [-2, 4], strikeDelta: 0, critChance: 0.26 },
+        { id: "dance_challenge", label: "Dance / Challenge Video", risk: "medium", followerGain: [-110, 340], socialDelta: [-2, 5], happyDelta: [-2, 6], strikeDelta: 0, critChance: 0.28 },
+        { id: "social_justice", label: "Opini Panas / Social Justice", risk: "high", followerGain: [-240, 650], socialDelta: [-5, 6], happyDelta: [-4, 4], strikeDelta: 1, critChance: 0.45 },
+        { id: "sexy_pic", label: "Foto Provokatif (Sexy Pic)", risk: "high", followerGain: [-260, 720], socialDelta: [-4, 5], happyDelta: [-2, 6], strikeDelta: 1, critChance: 0.42 },
+        { id: "prank_ekstrem", label: "Prank & Konten Kontroversial", risk: "extreme", followerGain: [-380, 950], socialDelta: [-8, 5], happyDelta: [-5, 6], strikeDelta: 2, critChance: 0.55 }
     ];
+
+    function triggerSocialCriticismEncounter(platId, pType) {
+        ensurePersonalSocialAccounts();
+        const acc = player.personalSocialAccounts[platId];
+        const plat = PERSONAL_SOCMED_PLATFORMS.find(p => p.id === platId);
+        if (!acc || acc.banned || !plat) return;
+
+        const criticNames = ["Rian Pratama", "Dinda Kirana", "Bagas Wijaya", "Novianti Putri", "Fikri Hakim", "Salsa Maharani", "Ardiansyah", "Tania Kusuma"];
+        const criticName = pickRandom(criticNames);
+        const critTopics = {
+            family_photo: `mengkritik ekspresi & porsi foto keluargamu di "${pType.label}" dianggap terlalu flexing`,
+            food_photo: `mengkritik ulasan kuliner di "${pType.label}" yang dinilai tidak sesuai kondisi lapangan`,
+            blog_thread: `mengkritik sudut pandang utas "${pType.label}" dan menantang klarifikasimu secara terbuka`,
+            gaming_vlog: `mengkritik gaya main & celotehanmu saat "${pType.label}" di kolom komentar`,
+            selfie: `mengkritik angle, filter, dan caption "${pType.label}" dengan komentar nyinyir`,
+            dance_challenge: `mengkritik gerakan dan musik latar pada "${pType.label}"`,
+            social_justice: `mengkritik keras opini "${pType.label}" dan menyebut argumenmu tidak berdasar`,
+            sexy_pic: `mengkritik penampilan "${pType.label}" sebagai konten cari sensasi semata`,
+            prank_ekstrem: `mengkritik "${pType.label}" karena dinilai kelewatan dan merugikan orang lain`
+        };
+        const critDesc = critTopics[pType.id] || `mengkritik tajam unggahan "${pType.label}" milikmu`;
+
+        showPopupEvent(
+            "💬",
+            `Kritik Pedas di ${plat.name}!`,
+            `Seorang netizen bernama <b>${criticName}</b> ${critDesc}.<br><br>Bagaimana caramu menanggapi kritik ini?`,
+            [
+                {
+                    text: "🤐 Didiamkan Saja (Fokus Konten Berikutnya)",
+                    fn: () => {
+                        ensurePersonalSocialAccounts();
+                        const curAcc = player.personalSocialAccounts[platId];
+                        if (!curAcc || curAcc.banned) return;
+                        const lost = randInt(5, Math.max(25, Math.round((curAcc.followers || 100) * 0.04)));
+                        curAcc.followers = Math.max(0, (curAcc.followers || 0) - lost);
+                        modifyStats({ happy: -randInt(1, 3), social: -randInt(1, 2) });
+                        addLog(`🤐 **[${plat.name}] KRITIK DIDIAMKAN:** Kamu memilih mendiamkan kritik dari **${criticName}**. Sebagian kecil penonton pergi (**-${lost.toLocaleString('id-ID')} ${plat.unitLabel}**), namun drama tidak membesar.`, "normal");
+                        showToast(`🤐 Kritik didiamkan (-${lost.toLocaleString('id-ID')} ${plat.unitLabel})`);
+                        renderPersonalSocialManageModal(platId);
+                        updateUI();
+                    }
+                },
+                {
+                    text: `🤝 Ajak Bertemu Langsung (${criticName})`,
+                    fn: () => {
+                        ensurePersonalSocialAccounts();
+                        const curAcc = player.personalSocialAccounts[platId];
+                        if (!curAcc || curAcc.banned) return;
+
+                        // Reaksi: meminta maaf & damai VS jadi viral & unfollow/unsubscribe massal!
+                        const apologyChance = clamp(0.32 + ((player.stats.social || 50) - 50) * 0.004, 0.15, 0.55);
+                        if (Math.random() < apologyChance) {
+                            const gain = randInt(35, Math.max(120, Math.round((curAcc.followers || 200) * 0.14)));
+                            curAcc.followers = (curAcc.followers || 0) + gain;
+                            modifyStats({ social: randInt(3, 7), happy: randInt(2, 5) });
+                            addLog(`🤝 **[${plat.name}] NETIZEN MINTA MAAF:** Setelah kamu ajak bertemu langsung, **${criticName}** justru meminta maaf dan mengaku salah paham! Obrolan adem itu mendapat simpati (**+${gain.toLocaleString('id-ID')} ${plat.unitLabel}**).`, "money");
+                            showToast(`🤝 ${criticName} minta maaf! (+${gain.toLocaleString('id-ID')} ${plat.unitLabel})`);
+                        } else {
+                            const lostSub = randInt(60, Math.max(180, Math.round((curAcc.followers || 300) * 0.25)));
+                            curAcc.followers = Math.max(0, (curAcc.followers || 0) - lostSub);
+                            modifyStats({ social: -randInt(4, 8), happy: -randInt(3, 7) });
+                            addLog(`🔥 **[${plat.name}] AJAKAN BERTEMU JADI VIRAL & BANYAK UNSUB/UNFOLLOW:** Pertemuanmu dengan **${criticName}** justru direkam dan viral ke mana-mana dengan narasi negatif! Banyak pengikut/subscriber pergi (**-${lostSub.toLocaleString('id-ID')} ${plat.unitLabel}**).`, "danger");
+                            showToast(`🔥 Viral & banyak yang pergi! (-${lostSub.toLocaleString('id-ID')} ${plat.unitLabel})`);
+                        }
+                        renderPersonalSocialManageModal(platId);
+                        updateUI();
+                    }
+                }
+            ],
+            `💬 KOLOM KOMENTAR ${plat.name.toUpperCase()}`
+        );
+    }
 
     // 24 Selebriti Fiktif (12 Dalam Negeri +62 & 12 Luar Negeri / Global)
     const SOCMED_CELEBRITIES = [
@@ -6187,17 +6259,22 @@
         acc.postsCount = (acc.postsCount || 0) + 1;
         const looksBonus = (player.stats.looks || 50) / 100;
         const socialBonus = (player.stats.social || 50) / 100;
-        const rawGain = randInt(pType.followerGain[0], pType.followerGain[1]);
-        const mult = 0.75 + looksBonus * 0.45 + socialBonus * 0.35;
-        const deltaFollowers = Math.round(rawGain * mult);
+        const minG = pType.followerGain[0];
+        const maxG = pType.followerGain[1];
+        let rawDelta = randInt(minG, maxG);
+        if (minG >= 0 && Math.random() < 0.34) {
+            rawDelta = -randInt(10, Math.max(25, Math.round(maxG * 0.35)));
+        }
+        const mult = rawDelta >= 0 ? (0.75 + looksBonus * 0.45 + socialBonus * 0.35) : (0.85 + (1 - socialBonus) * 0.35);
+        const deltaFollowers = Math.round(rawDelta * mult);
 
         acc.followers = Math.max(0, (acc.followers || 0) + deltaFollowers);
         if (pType.strikeDelta > 0 && Math.random() < 0.55) {
             acc.strikes = (acc.strikes || 0) + pType.strikeDelta;
         }
 
-        const sDelta = randInt(pType.socialDelta[0], pType.socialDelta[1]);
-        const hDelta = randInt(pType.happyDelta[0], pType.happyDelta[1]);
+        const sDelta = deltaFollowers < 0 ? Math.min(-1, randInt(pType.socialDelta[0], pType.socialDelta[1])) : randInt(pType.socialDelta[0], pType.socialDelta[1]);
+        const hDelta = deltaFollowers < 0 ? Math.min(-1, randInt(pType.happyDelta[0], pType.happyDelta[1])) : randInt(pType.happyDelta[0], pType.happyDelta[1]);
         modifyStats({ social: sDelta, happy: hDelta });
 
         const signF = deltaFollowers >= 0 ? "+" : "";
@@ -6211,6 +6288,11 @@
         showToast(`${plat.icon} Post "${pType.label}" (${signF}${deltaFollowers.toLocaleString('id-ID')} ${plat.unitLabel})`);
         renderPersonalSocialManageModal(platId);
         updateUI();
+
+        const critProb = pType.critChance || 0.25;
+        if (Math.random() < critProb) {
+            triggerSocialCriticismEncounter(platId, pType);
+        }
     }
 
     function executePersonalSocialTroll(platId) {
@@ -7457,9 +7539,9 @@
     }
 
     const POLITICAL_PARTIES = [
-        { id: "partai_merakyat", name: "Partai Wong Cilik Nusantara (PWCN)", fee: 15, reqSocial: 55, powerBonus: 0.08, desc: "Basis massa akar rumput kuat. Cocok untuk jalur Ketua RT, Lurah & Walikota." },
-        { id: "partai_elitis", name: "Partai Koalisi Garuda Emas (PKGE)", fee: 120, reqSocial: 75, powerBonus: 0.16, desc: "Partai koalisi besar dengan logistik kampanye kuat untuk Gubernur & Presiden." },
-        { id: "partai_sendiri", name: "Dirikan Partai Politik Sendiri (Ketua Umum)", fee: 1500, reqSocial: 88, powerBonus: 0.25, desc: "Kendali penuh 100% sebagai Ketua Umum Partai! Bebas mahar koalisi saat nyapres." }
+        { id: "partai_merakyat", name: "Partai Wong Cilik Nusantara (PWCN)", fee: 15, minAge: 21, reqSocial: 71, powerBonus: 0.08, desc: "Basis massa akar rumput kuat. Syarat: Usia ≥21 Thn & Sosial >70%." },
+        { id: "partai_elitis", name: "Partai Koalisi Garuda Emas (PKGE)", fee: 120, minAge: 21, reqSocial: 75, powerBonus: 0.16, desc: "Partai koalisi besar dengan logistik kampanye kuat. Syarat: Usia ≥21 Thn & Sosial >70%." },
+        { id: "partai_sendiri", name: "Dirikan Partai Politik Sendiri (Ketua Umum)", fee: 1500, minAge: 21, reqSocial: 88, powerBonus: 0.25, desc: "Kendali penuh 100% sebagai Ketua Umum Partai! Syarat: Usia ≥21 Thn & Sosial >70%." }
     ];
 
     const MIGRATION_COUNTRIES = [
@@ -10407,7 +10489,7 @@
                 if (isJoined) pCard.style.borderColor = "#16a34a";
                 pCard.innerHTML = `
                     <div class="item-title">🎗️ ${pt.name} (${formatShortJuta(pt.fee)})</div>
-                    <div class="item-desc">${pt.desc}<br><b>Syarat:</b> Sosial ≥${pt.reqSocial}% • <b>Bonus Elektabilitas:</b> +${Math.round(pt.powerBonus * 100)}%</div>
+                    <div class="item-desc">${pt.desc}<br><b>Syarat:</b> Usia ≥${pt.minAge || 21} Thn & Sosial &gt;70% (Min. ${Math.max(71, pt.reqSocial || 71)}%) • <b>Bonus Elektabilitas:</b> +${Math.round(pt.powerBonus * 100)}%</div>
                     ${isJoined
                         ? `<button class="btn-action btn-emerald" disabled>✅ Kendaraan Politik Aktif</button>`
                         : `<button class="btn-action btn-gold" onclick="joinPoliticalParty(${pIdx})">🎗️ Gabung / Dirikan (${formatShortJuta(pt.fee)})</button>`}
@@ -17321,8 +17403,14 @@
         if (!player) return;
         const pt = POLITICAL_PARTIES[pIdx];
         if (!pt) return;
-        if (player.stats.social < pt.reqSocial) {
-            showToast(`Elektabilitas sosial kurang! Butuh Sosial ≥ ${pt.reqSocial}%.`);
+        const reqAge = pt.minAge || 21;
+        const reqSoc = Math.max(71, pt.reqSocial || 71);
+        if ((player.age || 0) < reqAge) {
+            showToast(`Minimal berusia ${reqAge} tahun untuk membuat/bergabung Partai Politik!`);
+            return;
+        }
+        if ((player.stats.social || 0) <= 70 || (player.stats.social || 0) < reqSoc) {
+            showToast(`Sosial harus > 70% (minimal ${reqSoc}%) untuk membuat/bergabung Partai Politik!`);
             return;
         }
         if (player.money < pt.fee) {
