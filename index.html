@@ -5173,7 +5173,7 @@
     function calculateInheritanceDistribution() {
         const relObj = getPlayerReligionObj();
         const cashVal = Math.max(0, roundMoney(player.money || 0));
-        const assetVal = roundMoney((player.assets || []).filter(a => a.id !== "asuransi").reduce((s, a) => s + (a.price || 0), 0));
+        const assetVal = roundMoney((player.assets || []).filter(a => a.id !== "asuransi").reduce((s, a) => s + getAssetSellPrice(a), 0));
         const portfolioVal = roundMoney(Object.entries(player.portfolio || {}).reduce((s, [id, h]) => {
             const p = (player.marketPrices && player.marketPrices[id]) ? player.marketPrices[id] : 1;
             return s + ((h.units || 0) * p);
@@ -8538,7 +8538,10 @@
             const lvl = asItem.bizLevel || 1;
             const emp = asItem.employees || 0;
             const mult = 1 + (lvl - 1) * 0.45 + (emp * 0.15);
-            passive += roundMoney((asItem.passive || 0) * mult);
+            const cond = typeof asItem.condition === "number" ? asItem.condition : 100;
+            const condFactor = cond < 20 ? 0.25 : (cond < 50 ? 0.60 : 1.0);
+            const basePassive = (asItem.passive || 0) + (asItem.renovPassiveBonus || 0);
+            passive += roundMoney(basePassive * mult * condFactor);
             if (emp > 0) businessUpkeep += roundMoney(emp * 4.5);
         }
 
@@ -9611,6 +9614,21 @@
             if (player.money < 0 && player.lifestyle && player.lifestyle !== "hemat") {
                 player.lifestyle = "hemat";
                 addLog(`⚠️ **PENYESUAIAN GAYA HIDUP DARURAT:** Karena saldo minus, gaya hidupmu otomatis diturunkan ke **🍜 Mode Hemat (0.7x)** untuk menekan pengeluaran!`, "danger");
+            }
+        }
+
+        // Penyusutan Kondisi Aset Tahunan (Perlu Maintenance Rutin)
+        if (Array.isArray(player.assets) && player.assets.length > 0) {
+            let wornAssets = [];
+            player.assets.forEach(a => {
+                if (a.id === "asuransi" || a.category === "insurance") return;
+                ensureAssetMaintenanceProps(a);
+                const drop = a.category === "vehicle" ? randInt(8, 14) : (a.category === "property" ? randInt(4, 9) : randInt(5, 10));
+                a.condition = clamp(a.condition - drop, 5, 100);
+                if (a.condition < 40) wornAssets.push(`${a.icon} ${a.name} (${a.condition}%)`);
+            });
+            if (wornAssets.length > 0) {
+                addLog(`🔧 **PERINGATAN MAINTENANCE ASET:** Kondisi aset mulai menurun parah: **${wornAssets.join(", ")}**. Segera rawat di menu Aset agar nilai jual & passive income tidak anjlok!`, "anomaly");
             }
         }
 
@@ -11499,9 +11517,9 @@
 
         // TAB 3D: ASSET - PROPERTI, KENDARAAN & BISNIS (KENDARAAN, RUMAH, VILLA, KOST-KOSTAN & SMELTER)
         if (tab === "aset") {
-            // DAFTAR SELURUH ASET MILIK PEMAIN (BISA DIJUAL KAPAN SAJA SAAT HIDUP)
+            // DAFTAR SELURUH ASET MILIK PEMAIN (MAINTENANCE, RENOVASI/RUANGAN & JUAL SAAT HIDUP)
             const ownedPhysicalAssets = (player.assets || [])
-                .map((a, idx) => ({ a, idx }))
+                .map((a, idx) => ({ a: ensureAssetMaintenanceProps(a), idx }))
                 .filter(x => x.a.id !== "asuransi" && x.a.category !== "insurance");
 
             if (ownedPhysicalAssets.length > 0) {
@@ -11510,27 +11528,42 @@
                 myAssetsCard.style.borderColor = "#0284c7";
                 const myRows = ownedPhysicalAssets.map(({ a, idx }) => {
                     const sellEst = getAssetSellPrice(a);
+                    const maintCost = getAssetMaintenanceCost(a);
                     const hasLoan = (a.kprLoanId && (player.kprLoans || []).some(k => k.id === a.kprLoanId && k.yearsLeft > 0)) ||
                                     (a.vehicleLoanId && (player.vehicleLoans || []).some(v => v.id === a.vehicleLoanId && v.yearsLeft > 0));
+                    const condColor = a.condition >= 75 ? "#15803d" : (a.condition >= 40 ? "#d97706" : "#dc2626");
+                    const isProp = a.category === "property";
+                    const roomsBadge = isProp
+                        ? `<div style="font-size:10px; color:#0369a1; margin-top:2px;">🏗️ Ruangan (${a.rooms.length}/5): ${a.rooms.length > 0 ? a.rooms.map(rid => { const rO = PROPERTY_ROOMS_CATALOG.find(x => x.id === rid); return rO ? rO.icon + ' ' + rO.name : rid; }).join(', ') : 'Standar (Belum Renovasi)'}</div>`
+                        : '';
+                    const totalPassive = roundMoney((a.passive || 0) + (a.renovPassiveBonus || 0));
                     return `
-                        <div style="background:#f0f9ff; border:1.5px solid #bae6fd; border-radius:10px; padding:8px; margin-top:4px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
-                            <div>
-                                <div style="font-size:11.5px; font-weight:900; color:#0c4a6e;">${a.icon} ${a.name}</div>
-                                <div style="font-size:10px; color:#475569;">
-                                    Harga Dasar: ${formatShortJuta(a.price)} • Passive: +Rp ${a.passive || 0} Jt/thn
-                                    ${hasLoan ? '<br><span style="color:#dc2626; font-weight:800;">🔒 Masih dalam masa cicilan KPR/Leasing</span>' : ''}
+                        <div style="background:#f0f9ff; border:1.5px solid #bae6fd; border-radius:10px; padding:9px; margin-top:6px;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                                <div>
+                                    <div style="font-size:11.5px; font-weight:900; color:#0c4a6e;">${a.icon} ${a.name} ${hasLoan ? '<span style="font-size:9.5px; color:#d97706;">(Cicilan)</span>' : '<span style="font-size:9.5px; color:#15803d;">(Lunas)</span>'}</div>
+                                    <div style="font-size:10px; color:#475569; margin-top:2px;">
+                                        Kondisi: <b style="color:${condColor};">${a.condition}%</b> • Nilai Total: <b>${formatShortJuta((a.price || 0) + (a.renovValueBonus || 0))}</b> • Passive: <b>+Rp ${totalPassive} Jt/thn</b>
+                                    </div>
+                                    ${roomsBadge}
                                 </div>
                             </div>
-                            <button class="btn-action ${hasLoan ? 'btn-dark' : 'btn-rose'}" style="padding:6px 10px; font-size:10px; white-space:nowrap;" onclick="sellAssetWhileAlive(${idx})">
-                                🏷️ Jual (+${formatShortJuta(sellEst)})
-                            </button>
+                            <div style="display:grid; grid-template-columns:${isProp ? '1fr 1fr 1fr' : '1fr 1fr'}; gap:5px; margin-top:7px;">
+                                <button class="btn-action ${a.condition >= 100 ? 'btn-dark' : 'btn-primary'}" style="padding:6px 5px; font-size:9.5px;" onclick="maintainAsset(${idx})">
+                                    🔧 ${a.condition >= 100 ? 'Prima 100%' : `Rawat (${formatShortJuta(maintCost)})`}
+                                </button>
+                                ${isProp ? `<button class="btn-action btn-gold" style="padding:6px 5px; font-size:9.5px;" onclick="openPropertyRenovationMenu(${idx})">🏗️ Renov (${a.rooms.length}/5)</button>` : ''}
+                                <button class="btn-action ${hasLoan ? 'btn-dark' : 'btn-rose'}" style="padding:6px 5px; font-size:9.5px;" onclick="sellAssetWhileAlive(${idx})">
+                                    🏷️ Jual (+${formatShortJuta(sellEst)})
+                                </button>
+                            </div>
                         </div>
                     `;
                 }).join("");
 
                 myAssetsCard.innerHTML = `
                     <div class="item-title">📦 Aset Milikmu Saat Ini (${ownedPhysicalAssets.length} Unit)</div>
-                    <div class="item-desc">Kamu dapat menjual aset milikmu kapan saja saat hidup untuk mencairkan dana tunai ke saldo bank.</div>
+                    <div class="item-desc">Rawat kondisi aset agar nilai jual & passive income tetap maksimal. Properti (Cash maupun KPR) bisa direnovasi & ditambah hingga <b>5 dari 7 ruangan</b> lewat seleksi vendor!</div>
                     ${myRows}
                 `;
                 bodyEl.appendChild(myAssetsCard);
@@ -12311,11 +12344,351 @@
         return player && player.money >= c;
     }
 
+    // =========================================================================
+    // SISTEM MAINTENANCE ASET, RENOVASI, 7 PILIHAN RUANGAN (MAKS 5) & VENDOR
+    // =========================================================================
+    const PROPERTY_ROOMS_CATALOG = [
+        { id: "halaman", icon: "🌳", name: "Halaman & Taman Asri", baseCost: 15, valueAdd: 24, passiveAdd: 2, happyBonus: 4, socialBonus: 3, desc: "Taman hijau, gazebo santai & rumput rapi yang bikin rumah makin sejuk." },
+        { id: "pagar", icon: "🧱", name: "Pagar & Gerbang Otomatis", baseCost: 12, valueAdd: 18, passiveAdd: 1.5, happyBonus: 2, socialBonus: 3, desc: "Pagar tinggi kokoh dengan gerbang otomatis untuk privasi & keamanan." },
+        { id: "kolam_renang", icon: "🏊", name: "Kolam Renang Pribadi", baseCost: 65, valueAdd: 100, passiveAdd: 9, happyBonus: 7, socialBonus: 8, desc: "Kolam renang estetik ala villa Bali yang mendongkrak nilai jual & gengsi." },
+        { id: "ruang_game", icon: "🎮", name: "Ruang Game & Home Theater", baseCost: 35, valueAdd: 52, passiveAdd: 4, happyBonus: 8, socialBonus: 4, desc: "Ruangan kedap suara penuh konsol, PC high-end & layar bioskop mini." },
+        { id: "ruang_bunker", icon: "🛡️", name: "Ruang Bunker Bawah Tanah", baseCost: 90, valueAdd: 135, passiveAdd: 6, happyBonus: 5, socialBonus: 9, desc: "Bunker beton rahasia tahan bencana & tempat penyimpanan brankas sultan." },
+        { id: "lantai_2", icon: "🏠", name: "Ekspansi Lantai 2", baseCost: 110, valueAdd: 170, passiveAdd: 18, happyBonus: 6, socialBonus: 6, desc: "Menambah kamar tidur, balkon & ruang keluarga luas di lantai dua." },
+        { id: "lantai_3", icon: "🏢", name: "Ekspansi Lantai 3 & Rooftop", baseCost: 160, valueAdd: 250, passiveAdd: 28, happyBonus: 8, socialBonus: 10, desc: "Rooftop lounge dengan pemandangan kota & tambahan kamar ekstra di lantai tiga." }
+    ];
+
+    const VENDOR_NAME_POOL = [
+        { name: "Mandor Ujang & Tim Tukang Harian", tag: "Tukang Borongan Lokal" },
+        { name: "CV Karya Bangun Sejahtera +62", tag: "Kontraktor Menengah" },
+        { name: "PT Arsitek Sultan Nusantara", tag: "Kontraktor Premium" },
+        { name: "Jasa Renovasi Kilat 'Beres Bos'", tag: "Promosi Iklan Sosmed" },
+        { name: "Pak Slamet Spesialis Bangunan", tag: "Rekomendasi Tetangga" },
+        { name: "Studio Interior & Desain SCBD", tag: "Desainer Estetik" },
+        { name: "Kontraktor Proyek Cepat Tuntas", tag: "Vendor Proyek Umum" },
+        { name: "Kang Asep Renovasi & Las", tag: "Spesialis Bengkel & Sipil" }
+    ];
+
+    let activeRenovSession = null;
+
+    function ensureAssetMaintenanceProps(asset) {
+        if (!asset) return asset;
+        if (typeof asset.condition !== "number") asset.condition = 100;
+        if (typeof asset.renovValueBonus !== "number") asset.renovValueBonus = 0;
+        if (typeof asset.renovPassiveBonus !== "number") asset.renovPassiveBonus = 0;
+        if (!Array.isArray(asset.rooms)) asset.rooms = [];
+        return asset;
+    }
+
+    function getAssetMaintenanceCost(asset) {
+        ensureAssetMaintenanceProps(asset);
+        const missing = Math.max(0, 100 - asset.condition);
+        if (missing <= 0) return 0;
+        const base = Number(asset.price) || 10;
+        const pct = asset.category === "vehicle" ? 0.04 : 0.025;
+        return roundMoney(Math.max(0.5, base * pct * (missing / 100)));
+    }
+
+    function maintainAsset(assetIdx) {
+        if (!player || !player.alive || player.inJail) return;
+        const asset = player.assets && player.assets[assetIdx];
+        if (!asset) return;
+        ensureAssetMaintenanceProps(asset);
+
+        if (asset.condition >= 100) {
+            showToast(`✅ Kondisi ${asset.name} sudah prima (100%)!`);
+            return;
+        }
+        const cost = getAssetMaintenanceCost(asset);
+        if (!canAffordCost(cost)) {
+            showToast(`Saldo kurang! Biaya maintenance ${asset.name} adalah ${formatShortJuta(cost)}.`);
+            return;
+        }
+        player.money = roundMoney(player.money - cost);
+        const oldCond = asset.condition;
+        asset.condition = 100;
+        playGameSound("coin");
+        modifyStats({ happy: oldCond < 50 ? 2 : 1 });
+        addLog(`🔧 **MAINTENANCE ASET:** Kamu merawat & menyervis **${asset.icon} ${asset.name}** (${oldCond}% ➔ **100%**) dengan biaya **-${formatShortJuta(cost)}**.`, "money");
+        showToast(`🔧 ${asset.name} kembali prima 100%!`);
+        renderKarirSheet("aset");
+        updateUI();
+    }
+
+    function generateRandomVendorCandidate(baseCost) {
+        const picked = pickRandom(VENDOR_NAME_POOL);
+        const honesty = randInt(15, 98);
+        const costRating = randInt(20, 98);
+        const resultQuality = randInt(20, 98);
+        // Estimasi penawaran awal agak acak agar tidak membocorkan parameter asli
+        const quoteMult = randInt(88, 118) / 100;
+        const quotedCost = roundMoney(Math.max(1, baseCost * quoteMult));
+        return {
+            name: picked.name,
+            tag: picked.tag,
+            quotedCost,
+            honesty,
+            costRating,
+            resultQuality
+        };
+    }
+
+    function openPropertyRenovationMenu(assetIdx) {
+        if (!player || !player.alive || player.inJail) return;
+        const asset = player.assets && player.assets[assetIdx];
+        if (!asset || asset.category !== "property") return;
+        ensureAssetMaintenanceProps(asset);
+
+        const installedCount = asset.rooms.length;
+        const roomChoices = [];
+
+        // Opsi Renovasi Umum / Facelift (Selalu tersedia)
+        const faceliftBase = roundMoney(Math.max(10, asset.price * 0.08));
+        roomChoices.push({
+            text: `🔨 Renovasi Total / Facelift Bangunan (Est. ~${formatShortJuta(faceliftBase)} • Kondisi 100% + Naik Nilai)`,
+            fn: () => startVendorSelectionFlow(assetIdx, {
+                type: "facelift",
+                id: "facelift",
+                icon: "🔨",
+                name: "Renovasi Total / Facelift",
+                baseCost: faceliftBase,
+                valueAdd: roundMoney(faceliftBase * 1.35),
+                passiveAdd: roundMoney(Math.max(1, (asset.passive || 5) * 0.12)),
+                happyBonus: 4,
+                socialBonus: 3
+            })
+        });
+
+        // Opsi Tambah 5 Ruangan dari 7 Pilihan Ruangan
+        if (installedCount < 5) {
+            PROPERTY_ROOMS_CATALOG.forEach(rm => {
+                if (asset.rooms.includes(rm.id)) return;
+                roomChoices.push({
+                    text: `${rm.icon} Tambah ${rm.name} (Est. ~${formatShortJuta(rm.baseCost)} • +Passive Rp ${rm.passiveAdd} Jt/thn)`,
+                    fn: () => startVendorSelectionFlow(assetIdx, { type: "room", ...rm })
+                });
+            });
+        }
+
+        roomChoices.push({
+            text: "✕ Kembali ke Menu Aset",
+            fn: () => renderKarirSheet("aset")
+        });
+
+        const installedNames = installedCount > 0
+            ? asset.rooms.map(rid => {
+                const rObj = PROPERTY_ROOMS_CATALOG.find(x => x.id === rid);
+                return rObj ? `${rObj.icon} ${rObj.name}` : rid;
+            }).join(", ")
+            : "Belum ada ruangan tambahan";
+
+        showPopupEvent(
+            "🏗️",
+            `Renovasi & Tambah Ruangan: ${asset.name}`,
+            `Status Aset: <b>${asset.isKpr ? '🏦 KPR Aktif' : '💵 Lunas / Cash'}</b> • Kondisi: <b>${asset.condition}%</b><br>` +
+            `Ruangan Terpasang (<b>${installedCount}/5 Maksimal</b>): ${installedNames}<br><br>` +
+            `Pilih proyek renovasi atau ruangan baru (maks. 5 dari 7 ruangan). Setelah memilih proyek, kamu bisa <b>memilih vendor hingga 3x kesempatan</b> sebelum deal!`,
+            roomChoices,
+            "🏗️ RENOVASI & EKSPANSI RUANGAN"
+        );
+    }
+
+    function startVendorSelectionFlow(assetIdx, project) {
+        const firstVendor = generateRandomVendorCandidate(project.baseCost);
+        activeRenovSession = {
+            assetIdx,
+            project,
+            candidates: [firstVendor],
+            currentIndex: 0,
+            maxRolls: 3
+        };
+        renderVendorSelectionPopup();
+    }
+
+    function renderVendorSelectionPopup() {
+        if (!activeRenovSession) return;
+        const { assetIdx, project, candidates, currentIndex, maxRolls } = activeRenovSession;
+        const asset = player.assets && player.assets[assetIdx];
+        if (!asset) return;
+
+        const v = candidates[currentIndex];
+        const rollsUsed = candidates.length;
+        const rollsLeft = maxRolls - rollsUsed;
+
+        const choices = [
+            {
+                text: `🤝 Deal dengan Vendor Ini (DP/Estimasi ${formatShortJuta(v.quotedCost)})`,
+                fn: () => executeRenovationWithVendor(assetIdx, project, v)
+            }
+        ];
+
+        if (rollsLeft > 0) {
+            choices.push({
+                text: `🔄 Cari Vendor Lain (Kesempatan Pilih/Survey: ${rollsUsed}/${maxRolls} • Sisa ${rollsLeft}x)`,
+                fn: () => {
+                    const nextV = generateRandomVendorCandidate(project.baseCost);
+                    activeRenovSession.candidates.push(nextV);
+                    activeRenovSession.currentIndex = activeRenovSession.candidates.length - 1;
+                    renderVendorSelectionPopup();
+                }
+            });
+        }
+
+        if (candidates.length > 1) {
+            candidates.forEach((cand, cIdx) => {
+                if (cIdx === currentIndex) return;
+                choices.push({
+                    text: `↩️ Kembali ke Vendor #${cIdx + 1}: ${cand.name} (${formatShortJuta(cand.quotedCost)})`,
+                    fn: () => {
+                        activeRenovSession.currentIndex = cIdx;
+                        renderVendorSelectionPopup();
+                    }
+                });
+            });
+        }
+
+        choices.push({
+            text: "✕ Batalkan Proyek Renovasi",
+            fn: () => {
+                activeRenovSession = null;
+                renderKarirSheet("aset");
+            }
+        });
+
+        showPopupEvent(
+            "👷",
+            `Pilih Vendor Renovasi (Kandidat ${currentIndex + 1}/${maxRolls})`,
+            `Proyek: <b>${project.icon} ${project.name}</b> untuk <b>${asset.name}</b><br><br>` +
+            `<div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:10px; font-size:11.5px; line-height:1.6;">` +
+            `<b>👷 ${v.name}</b> <span style="font-size:10px; color:#0284c7;">(${v.tag})</span><br>` +
+            `• Penawaran RAB Awal: <b style="color:#d97706;">${formatShortJuta(v.quotedCost)}</b><br>` +
+            `• 🤝 Kejujuran Vendor: <b style="color:#64748b;">🔒 ??? (Ketahuan setelah selesai)</b><br>` +
+            `• 💰 Realisasi Biaya: <b style="color:#64748b;">🔒 ??? (Ketahuan setelah selesai)</b><br>` +
+            `• ✨ Kualitas Hasil: <b style="color:#64748b;">🔒 ??? (Ketahuan setelah selesai)</b>` +
+            `</div><br>` +
+            `<span style="font-size:10.5px; color:#7c6651;">⚠️ Kamu memiliki maksimal <b>3x pilihan vendor</b> per renovasi. Karakter asli vendor baru ketahuan saat proyek selesai!</span>`,
+            choices,
+            "👷 SELEKSI VENDOR RENOVASI"
+        );
+    }
+
+    function executeRenovationWithVendor(assetIdx, project, vendor) {
+        if (!player || !player.alive) return;
+        const asset = player.assets && player.assets[assetIdx];
+        if (!asset) return;
+        ensureAssetMaintenanceProps(asset);
+
+        if (!canAffordCost(vendor.quotedCost)) {
+            showToast(`Saldomu kurang! Penawaran vendor ini butuh ${formatShortJuta(vendor.quotedCost)}.`);
+            renderVendorSelectionPopup();
+            return;
+        }
+
+        activeRenovSession = null;
+
+        // Hitung realisasi berdasarkan 3 parameter tersembunyi vendor: Kejujuran, Biaya, Hasil
+        const h = vendor.honesty;
+        const c = vendor.costRating;
+        const r = vendor.resultQuality;
+
+        // 1. Evaluasi Kejujuran (Bisa amanah, mark-up, atau kabur bawa uang!)
+        const ranAway = h < 24 && Math.random() < 0.55;
+        if (ranAway) {
+            const lostDp = roundMoney(vendor.quotedCost * 0.65);
+            player.money = roundMoney(player.money - lostDp);
+            modifyStats({ happy: -randInt(6, 12) });
+            playGameSound("danger");
+            addLog(`🚨 **VENDOR KABUR BAWA UANG (${vendor.name}):** Waduh! Baru selesai bongkar-bongkar untuk **${project.name}** di **${asset.name}**, mandor kabur membawa uang DP **-${formatShortJuta(lostDp)}**! (Kejujuran: ${h}% • Biaya: ${c}% • Hasil: ${r}%).`, "danger");
+            showPopupEvent(
+                "🚨",
+                "Zonk! Vendor Kabur Membawa Uang DP!",
+                `Proyek <b>${project.icon} ${project.name}</b> pada <b>${asset.name}</b> gagal total karena <b>${vendor.name}</b> menghilang tanpa jejak!<br><br>` +
+                `<div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:10px; font-size:11.5px; line-height:1.6;">` +
+                `<b>📊 Rapor Asli Vendor Terungkap:</b><br>` +
+                `• 🤝 Kejujuran: <b style="color:#dc2626;">${h}% (Buruk / Menipu!)</b><br>` +
+                `• 💰 Efisiensi Biaya: <b>${c}%</b><br>` +
+                `• ✨ Kualitas Hasil: <b>${r}%</b><br>` +
+                `• Kerugian DP Hangus: <b style="color:#dc2626;">-${formatShortJuta(lostDp)}</b>` +
+                `</div>`,
+                [{ text: "😤 Terima Nasib & Kembali", fn: () => renderKarirSheet("aset") }],
+                "🚨 LAPORAN RENOVASI"
+            );
+            updateUI();
+            return;
+        }
+
+        // 2. Hitung Biaya Aktual berdasarkan Efisiensi Biaya (c) & Kejujuran (h)
+        let costFactor = 1.0;
+        if (c >= 75 && h >= 65) costFactor = randInt(85, 96) / 100;       // Hemat!
+        else if (c >= 45 && h >= 45) costFactor = randInt(97, 108) / 100; // Sesuai RAB
+        else costFactor = randInt(115, 145) / 100;                        // Bengkak / Mark-up!
+
+        const actualCost = roundMoney(vendor.quotedCost * costFactor);
+        const costDiff = roundMoney(actualCost - vendor.quotedCost);
+        player.money = roundMoney(player.money - actualCost);
+
+        // 3. Hitung Kualitas Hasil (r) & Dampak Nilai + Passive Income
+        let qualityLabel = "Standar Rapi";
+        let qualityMult = 1.0;
+        let condGain = 25;
+        if (r >= 78) {
+            qualityLabel = "Mewah & Sempurna! ✨";
+            qualityMult = 1.35;
+            condGain = 40;
+        } else if (r < 45) {
+            qualityLabel = "Kurang Rapi / Retak Rambut ⚠️";
+            qualityMult = 0.65;
+            condGain = 10;
+        }
+
+        const gainedValue = roundMoney(project.valueAdd * qualityMult);
+        const gainedPassive = roundMoney(project.passiveAdd * qualityMult);
+
+        if (project.type === "room" && !asset.rooms.includes(project.id)) {
+            asset.rooms.push(project.id);
+        }
+        asset.condition = clamp(project.type === "facelift" ? Math.max(asset.condition, r >= 45 ? 100 : 80) : asset.condition + condGain, 0, 100);
+        asset.renovValueBonus = roundMoney((asset.renovValueBonus || 0) + gainedValue);
+        asset.renovPassiveBonus = roundMoney((asset.renovPassiveBonus || 0) + gainedPassive);
+
+        const honestyLabel = h >= 75 ? "Amanah & Transparan" : (h >= 45 ? "Cukup Jujur" : "Ada Mark-up Bahan!");
+        const costLabel = costDiff < 0
+            ? `Hemat ${formatShortJuta(Math.abs(costDiff))} dari RAB!`
+            : (costDiff === 0 ? "Tepat Sesuai RAB" : `Bengkak +${formatShortJuta(costDiff)} dari RAB`);
+
+        modifyStats({
+            happy: r >= 45 ? (project.happyBonus || 3) : -3,
+            social: project.socialBonus || 2
+        });
+        playGameSound(r >= 45 ? "coin" : "danger");
+
+        addLog(`🏗️ **RENOVASI SELESAI (${asset.name}):** Proyek **${project.icon} ${project.name}** oleh **${vendor.name}** rampung! Biaya aktual: **-${formatShortJuta(actualCost)}** (${costLabel}). Nilai properti naik **+${formatShortJuta(gainedValue)}** & Passive Income **+Rp ${gainedPassive} Jt/thn**! [Rapor Vendor — Kejujuran: ${h}%, Biaya: ${c}%, Hasil: ${r}%].`, r >= 45 ? "money" : "anomaly");
+
+        showPopupEvent(
+            r >= 78 ? "✨" : (r >= 45 ? "🏗️" : "😅"),
+            `Renovasi Selesai: ${project.name}!`,
+            `Pengerjaan oleh <b>${vendor.name}</b> pada <b>${asset.name}</b> telah selesai! Berikut rapor asli vendor yang baru terungkap:<br><br>` +
+            `<div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:10px; font-size:11.5px; line-height:1.6;">` +
+            `• 🤝 <b>Kejujuran:</b> <b style="color:${h >= 75 ? '#15803d' : (h >= 45 ? '#d97706' : '#dc2626')};">${h}%</b> (${honestyLabel})<br>` +
+            `• 💰 <b>Efisiensi Biaya:</b> <b style="color:${c >= 75 ? '#15803d' : (c >= 45 ? '#d97706' : '#dc2626')};">${c}%</b> (${costLabel})<br>` +
+            `• ✨ <b>Kualitas Hasil:</b> <b style="color:${r >= 78 ? '#15803d' : (r >= 45 ? '#0284c7' : '#dc2626')};">${r}%</b> (${qualityLabel})<br>` +
+            `<hr style="margin:6px 0; border:none; border-top:1px dashed #cbd5e1;">` +
+            `• Total Biaya Aktual: <b style="color:#dc2626;">-${formatShortJuta(actualCost)}</b><br>` +
+            `• Kenaikan Nilai Properti: <b style="color:#15803d;">+${formatShortJuta(gainedValue)}</b><br>` +
+            `• Tambahan Passive Income: <b style="color:#15803d;">+Rp ${gainedPassive} Jt/thn</b>` +
+            `</div>`,
+            [{ text: "✅ Mantap! Lihat Aset Saya", fn: () => renderKarirSheet("aset") }],
+            "📊 RAPOR AKHIR VENDOR RENOVASI"
+        );
+        updateUI();
+    }
+
     function getAssetSellPrice(asset) {
         if (!asset) return 0;
-        const base = Number(asset.price) || 0;
+        ensureAssetMaintenanceProps(asset);
+        const base = (Number(asset.price) || 0) + (Number(asset.renovValueBonus) || 0);
         const rate = asset.category === "vehicle" ? 0.80 : 0.95;
-        return roundMoney(base * rate);
+        const condMult = 0.5 + 0.5 * (clamp(asset.condition, 0, 100) / 100);
+        return roundMoney(base * rate * condMult);
     }
 
     function sellAssetWhileAlive(assetIdx) {
