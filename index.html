@@ -11499,6 +11499,42 @@
 
         // TAB 3D: ASSET - PROPERTI, KENDARAAN & BISNIS (KENDARAAN, RUMAH, VILLA, KOST-KOSTAN & SMELTER)
         if (tab === "aset") {
+            // DAFTAR SELURUH ASET MILIK PEMAIN (BISA DIJUAL KAPAN SAJA SAAT HIDUP)
+            const ownedPhysicalAssets = (player.assets || [])
+                .map((a, idx) => ({ a, idx }))
+                .filter(x => x.a.id !== "asuransi" && x.a.category !== "insurance");
+
+            if (ownedPhysicalAssets.length > 0) {
+                const myAssetsCard = document.createElement("div");
+                myAssetsCard.className = "item-card";
+                myAssetsCard.style.borderColor = "#0284c7";
+                const myRows = ownedPhysicalAssets.map(({ a, idx }) => {
+                    const sellEst = getAssetSellPrice(a);
+                    const hasLoan = (a.kprLoanId && (player.kprLoans || []).some(k => k.id === a.kprLoanId && k.yearsLeft > 0)) ||
+                                    (a.vehicleLoanId && (player.vehicleLoans || []).some(v => v.id === a.vehicleLoanId && v.yearsLeft > 0));
+                    return `
+                        <div style="background:#f0f9ff; border:1.5px solid #bae6fd; border-radius:10px; padding:8px; margin-top:4px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                            <div>
+                                <div style="font-size:11.5px; font-weight:900; color:#0c4a6e;">${a.icon} ${a.name}</div>
+                                <div style="font-size:10px; color:#475569;">
+                                    Harga Dasar: ${formatShortJuta(a.price)} • Passive: +Rp ${a.passive || 0} Jt/thn
+                                    ${hasLoan ? '<br><span style="color:#dc2626; font-weight:800;">🔒 Masih dalam masa cicilan KPR/Leasing</span>' : ''}
+                                </div>
+                            </div>
+                            <button class="btn-action ${hasLoan ? 'btn-dark' : 'btn-rose'}" style="padding:6px 10px; font-size:10px; white-space:nowrap;" onclick="sellAssetWhileAlive(${idx})">
+                                🏷️ Jual (+${formatShortJuta(sellEst)})
+                            </button>
+                        </div>
+                    `;
+                }).join("");
+
+                myAssetsCard.innerHTML = `
+                    <div class="item-title">📦 Aset Milikmu Saat Ini (${ownedPhysicalAssets.length} Unit)</div>
+                    <div class="item-desc">Kamu dapat menjual aset milikmu kapan saja saat hidup untuk mencairkan dana tunai ke saldo bank.</div>
+                    ${myRows}
+                `;
+                bodyEl.appendChild(myAssetsCard);
+            }
             // MANAJEMEN BISNIS & PROPERTI AKTIF YANG DIMILIKI
             const bizAssets = (player.assets || []).map((a, idx) => ({ a, idx })).filter(x => x.a.passive > 0);
             if (bizAssets.length > 0) {
@@ -12267,6 +12303,69 @@
         showToast(`Mulai bekerja sebagai ${ij.title} (${hours}j/mgg)!`);
         renderKarirSheet("kerja");
         });
+    }
+
+    function canAffordCost(cost) {
+        const c = Number(cost) || 0;
+        if (c <= 0) return true;
+        return player && player.money >= c;
+    }
+
+    function getAssetSellPrice(asset) {
+        if (!asset) return 0;
+        const base = Number(asset.price) || 0;
+        const rate = asset.category === "vehicle" ? 0.80 : 0.95;
+        return roundMoney(base * rate);
+    }
+
+    function sellAssetWhileAlive(assetIdx) {
+        if (!player || !player.alive || player.inJail) return;
+        if (!Array.isArray(player.assets) || !player.assets[assetIdx]) return;
+
+        const asset = player.assets[assetIdx];
+        if (asset.id === "asuransi" || asset.category === "insurance") {
+            cancelLifeInsurancePolicy();
+            return;
+        }
+
+        const activeKpr = asset.kprLoanId && (player.kprLoans || []).find(k => k.id === asset.kprLoanId && k.yearsLeft > 0);
+        const activeVehLoan = asset.vehicleLoanId && (player.vehicleLoans || []).find(v => v.id === asset.vehicleLoanId && v.yearsLeft > 0);
+
+        if (activeKpr || activeVehLoan) {
+            showToast("⚠️ Lunasi dulu cicilan KPR/Leasing aset ini sebelum dijual!");
+            return;
+        }
+
+        const sellPrice = getAssetSellPrice(asset);
+        const noteRate = asset.category === "vehicle" ? "80% • Depresiasi 20%" : "95% • Biaya Notaris/Admin 5%";
+
+        showPopupEvent(
+            "🏷️",
+            `Konfirmasi Jual Aset: ${asset.name}`,
+            `Apakah kamu yakin ingin menjual <b>${asset.icon} ${asset.name}</b>?<br><br>` +
+            `• Harga Beli Dasar: <b>${formatShortJuta(asset.price)}</b><br>` +
+            `• Taksiran Harga Jual (${noteRate}): <b style="color:#15803d;">+${formatShortJuta(sellPrice)}</b><br>` +
+            `• Dana langsung masuk ke Saldo Bank dan passive income aset ini berhenti.`,
+            [
+                {
+                    text: `💰 Ya, Jual Sekarang (+${formatShortJuta(sellPrice)})`,
+                    fn: () => {
+                        player.money = roundMoney(player.money + sellPrice);
+                        player.assets.splice(assetIdx, 1);
+                        playGameSound("coin");
+                        addLog(`💰 **JUAL ASET:** Kamu berhasil menjual **${asset.icon} ${asset.name}** seharga **+${formatShortJuta(sellPrice)}**. Dana langsung masuk ke rekening!`, "money");
+                        showToast(`✅ ${asset.name} terjual (+${formatShortJuta(sellPrice)})!`);
+                        renderKarirSheet("aset");
+                        updateUI();
+                    }
+                },
+                {
+                    text: "✕ Batal",
+                    fn: () => renderKarirSheet("aset")
+                }
+            ],
+            "🏷️ PENJUALAN ASET PRIBADI"
+        );
     }
 
     function buyAssetItem(idx) {
@@ -15987,7 +16086,7 @@
                     showToast("Maksimal 5 aktivitas upgrade per tahun! Klik +1 Tahun dulu.");
                     return;
                 }
-                if (player.money < a.cost) {
+                if (!canAffordCost(a.cost)) {
                     showToast(`Saldomu kurang! Butuh ${formatShortJuta(a.cost)}.`);
                     return;
                 }
@@ -17455,7 +17554,7 @@
                 penangFee = roundMoney(basePenangFee - vipCoveredAmt);
             }
 
-            if (player.money < penangFee) { showToast(`Saldo kurang! Berobat ke Penang/Singapura butuh ${formatShortJuta(penangFee)}.`); return; }
+            if (penangFee > 0 && player.money < penangFee) { showToast(`Saldo kurang! Berobat ke Penang/Singapura butuh ${formatShortJuta(penangFee)}.`); return; }
             if (penangFee > 0) player.money = roundMoney(player.money - penangFee);
 
             player.penangTreatmentsThisYear = usedPenang + 1;
