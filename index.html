@@ -1612,6 +1612,49 @@
         }
     }
 
+
+    const JSON_SAVE_SLOT_KEY = "warga62_simulator_json_slot_v1";
+
+    function writeJsonSaveSlot(jsonStr) {
+        if (typeof jsonStr !== "string" || !jsonStr.trim()) return false;
+        try {
+            const parsed = JSON.parse(jsonStr);
+            if (!parsed || !parsed.player || !parsed.player.stats || !parsed.player.name) {
+                return false;
+            }
+            const normalized = JSON.stringify({
+                format: "warga62-save-json-v1",
+                player: parsed.player,
+                logsHtml: typeof parsed.logsHtml === "string" ? parsed.logsHtml : "",
+                savedAt: parsed.savedAt || Date.now()
+            });
+            safeStorageSet(JSON_SAVE_SLOT_KEY, normalized);
+            safeStorageSet(SAVE_STORAGE_KEY, normalized);
+            return true;
+        } catch (err) {
+            console.warn("Gagal menulis JSON save slot:", err);
+            return false;
+        }
+    }
+
+    function loadGameFromJsonSlot() {
+        try {
+            const rawJson = safeStorageGet(JSON_SAVE_SLOT_KEY);
+            if (!rawJson) return false;
+            const parsed = JSON.parse(rawJson);
+            if (!parsed || !parsed.player || !parsed.player.stats || !parsed.player.name) {
+                safeStorageRemove(JSON_SAVE_SLOT_KEY);
+                return false;
+            }
+            safeStorageSet(SAVE_STORAGE_KEY, JSON.stringify(parsed));
+            return loadGameFromLocal();
+        } catch (err) {
+            console.warn("Gagal memuat dari JSON save slot:", err);
+            safeStorageRemove(JSON_SAVE_SLOT_KEY);
+            return false;
+        }
+    }
+
     function saveGameToLocal() {
         if (!player) return;
         try {
@@ -1621,7 +1664,9 @@
                 logsHtml: logEl ? logEl.innerHTML : "",
                 savedAt: Date.now()
             };
-            safeStorageSet(SAVE_STORAGE_KEY, JSON.stringify(payload));
+            const serialized = JSON.stringify(payload);
+            safeStorageSet(SAVE_STORAGE_KEY, serialized);
+            safeStorageSet(JSON_SAVE_SLOT_KEY, serialized);
         } catch (err) {
             console.warn("Gagal menyimpan ke LocalStorage:", err);
         }
@@ -1696,6 +1741,7 @@
 
     function clearLocalSaveData(wipeAchievements = false) {
         safeStorageRemove(SAVE_STORAGE_KEY);
+        safeStorageRemove(JSON_SAVE_SLOT_KEY);
         if (wipeAchievements) {
             safeStorageRemove(HOF_ACHIEVEMENTS_KEY);
             safeStorageRemove(HOF_STORAGE_KEY);
@@ -18552,8 +18598,11 @@
                                         showToast("File save JSON tidak valid!");
                                         return;
                                     }
-                                    safeStorageSet(SAVE_STORAGE_KEY, JSON.stringify(obj));
-                                    loadGameFromLocal();
+                                    if (!writeJsonSaveSlot(JSON.stringify(obj))) {
+                                        showToast("Struktur file JSON save tidak sesuai!");
+                                        return;
+                                    }
+                                    loadGameFromJsonSlot();
                                     showToast("✅ Progres berhasil dipulihkan dari file JSON!");
                                 } catch (err) {
                                     showToast("Gagal membaca file backup JSON!");
@@ -18590,7 +18639,7 @@
 
     function initWarga62App() {
         purgeLegacyAndCorruptStorage();
-        if (!loadGameFromLocal()) {
+        if (!loadGameFromJsonSlot() && !loadGameFromLocal()) {
             openSplashScreenModal();
         }
     }
