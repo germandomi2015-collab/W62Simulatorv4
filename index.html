@@ -1718,7 +1718,7 @@
             }
 
             document.getElementById("splashModal").classList.add("hidden");
-            document.getElementById("birthModal").classList.add("hidden");
+            const _bm = document.getElementById("birthModal"); if (_bm) { _bm.classList.add("hidden"); _bm.style.display = ""; }
             document.getElementById("sheetModal").classList.add("hidden");
             document.getElementById("eventModal").classList.add("hidden");
 
@@ -1754,8 +1754,17 @@
     function resetSavedDataAndOpenBirth(wipeAchievements = false) {
         clearLocalSaveData(wipeAchievements);
         player = null;
+        if (typeof currentExamState !== "undefined") currentExamState = null;
+        if (typeof currentInterviewState !== "undefined") currentInterviewState = null;
         const logEl = document.getElementById("lifeLog");
         if (logEl) logEl.innerHTML = "";
+        ["endModal", "eventModal", "sheetModal", "splashModal"].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add("hidden");
+                el.style.display = "";
+            }
+        });
         openBirthRegistrationModal();
     }
 
@@ -8672,10 +8681,10 @@
     // 4. PRE-GAME: AKTA KELAHIRAN DUKCAPIL +62 (acak STATS)
     // =========================================================================
     function openSplashScreenModal() {
-        document.getElementById("endModal").classList.add("hidden");
+        const _em = document.getElementById("endModal"); if (_em) { _em.classList.add("hidden"); _em.style.display = ""; }
         document.getElementById("sheetModal").classList.add("hidden");
         document.getElementById("eventModal").classList.add("hidden");
-        document.getElementById("birthModal").classList.add("hidden");
+        const _bm = document.getElementById("birthModal"); if (_bm) { _bm.classList.add("hidden"); _bm.style.display = ""; }
         document.getElementById("splashModal").classList.remove("hidden");
     }
 
@@ -8685,11 +8694,18 @@
     }
 
     function openBirthRegistrationModal() {
-        document.getElementById("splashModal").classList.add("hidden");
-        document.getElementById("endModal").classList.add("hidden");
-        document.getElementById("sheetModal").classList.add("hidden");
-        document.getElementById("eventModal").classList.add("hidden");
-        document.getElementById("birthModal").classList.remove("hidden");
+        ["splashModal", "endModal", "sheetModal", "eventModal"].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add("hidden");
+                el.style.display = "";
+            }
+        });
+        const birthEl = document.getElementById("birthModal");
+        if (birthEl) {
+            birthEl.classList.remove("hidden");
+            birthEl.style.display = "flex";
+        }
         randomizeBirthNameInput();
     }
 
@@ -8846,7 +8862,7 @@
             kprLoans: []
         };
 
-        document.getElementById("birthModal").classList.add("hidden");
+        const _bm = document.getElementById("birthModal"); if (_bm) { _bm.classList.add("hidden"); _bm.style.display = ""; }
         document.getElementById("lifeLog").innerHTML = "";
 
         const originText = birthOrigin === "complete"
@@ -18203,6 +18219,13 @@
     }
 
     function showEndGameModal(title, reason, emoji = "🪦") {
+        ["eventModal", "sheetModal", "splashModal", "birthModal"].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add("hidden");
+                el.style.display = "";
+            }
+        });
         if (player && !player.migrated) {
             const deathPayout = payLifeInsuranceDeathBenefit(`${player.name} (Pemegang Polis)`, true);
             if (deathPayout > 0) {
