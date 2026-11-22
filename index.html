@@ -5358,6 +5358,7 @@
             cashVal,
             assetVal,
             portfolioVal,
+            debtSummary,
             totalEstate,
             breakdown
         };
@@ -5749,12 +5750,19 @@
 
         player.money = roundMoney(player.money - upfrontCost);
         const loanId = `kpr_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-        player.assets.push({
+        player.assets.push(ensureAssetLifecycleProps({
             ...as,
+            basePrice: as.price,
+            purchaseAge: player.age,
+            condition: 95,
+            renovationValue: 0,
+            renovatedCount: 0,
+            maintainedThisYear: false,
+            inflationFactor: 1.0,
             isKpr: true,
             kprLoanId: loanId,
             kprBankName: bank.name.split(" (")[0]
-        });
+        }));
 
         if (!Array.isArray(player.kprLoans)) player.kprLoans = [];
         player.kprLoans.push({
@@ -5953,13 +5961,20 @@
 
         player.money = roundMoney(player.money - upfrontCost);
         const loanId = `veh_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-        player.assets.push({
+        player.assets.push(ensureAssetLifecycleProps({
             ...as,
+            basePrice: as.price,
+            purchaseAge: player.age,
+            condition: 95,
+            renovationValue: 0,
+            renovatedCount: 0,
+            maintainedThisYear: false,
+            inflationFactor: 1.0,
             isVehicleLoan: true,
             vehicleLoanId: loanId,
             vehicleFinType: plan.finType,
             vehicleFinName: plan.name.split(" (")[0]
-        });
+        }));
 
         if (!Array.isArray(player.vehicleLoans)) player.vehicleLoans = [];
         player.vehicleLoans.push({
@@ -9209,6 +9224,7 @@
         if (portfolioLogNotes.length > 0) {
             addLog(`📊 ** UPDATE BURSA SAHAM & CRYPTO:** Fluktuasi pasar tahun ini: ${portfolioLogNotes.join(" • ")}.`, "money");
         }
+        processAnnualDividendsAndAssetInflation();
 
         // Umur & Saldo Aktual Orang Tua, Mertua, Teman, Pasangan & Anak
         if (player.parents) {
@@ -11529,6 +11545,64 @@
                 bodyEl.appendChild(bizCard);
             }
 
+            // BANNER PERINGATAN SALDO MINUS / PINJOL (OPSI JUAL ASET ATAU BIARKAN)
+            if (player.money < 0) {
+                const debtCard = document.createElement("div");
+                debtCard.className = "item-card";
+                debtCard.style.borderColor = "#dc2626";
+                debtCard.style.background = "#fef2f2";
+                const estBunga = roundMoney(Math.max(1, Math.abs(player.money) * 0.15));
+                debtCard.innerHTML = `
+                    <div class="item-title" style="color:#991b1b;">🚨 Saldo Minus / Jeratan Pinjol: ${formatShortJuta(player.money)}</div>
+                    <div class="item-desc" style="color:#7f1d1d;">
+                        • Jika dibiarkan, saldo minus terkena bunga pinjol sekitar <b>-Rp ${estBunga} Jt/thn</b>.<br>
+                        • Kamu bisa <b>menjual aset</b> di bawah ini untuk menutup defisit, atau <b>membiarkannya</b> (saat tutup usia, seluruh aset & portofolio akan otomatis digunakan untuk melunasi Pinjol & pinjaman bank terlebih dahulu sebelum sisa bersihnya dibagikan ke ahli waris).
+                    </div>
+                `;
+                bodyEl.appendChild(debtCard);
+            }
+
+            // DAFTAR ASET DIMILIKI: MAINTENANCE (GRATIS S.D. MAHAL), RENOVASI DEVELOPER & JUAL (CASH / KPR)
+            const ownedPhys = (player.assets || []).map((a, idx) => ({ a, idx })).filter(x => x.a && x.a.id !== "asuransi" && x.a.category !== "insurance");
+            if (ownedPhys.length > 0) {
+                const ownedCard = document.createElement("div");
+                ownedCard.className = "item-card";
+                ownedCard.style.borderColor = "#0284c7";
+                const ownedRows = ownedPhys.map(({ a, idx }) => {
+                    const item = ensureAssetLifecycleProps(a);
+                    const yrs = getAssetYearsHeld(item);
+                    const appraisal = getAssetAppraisalValue(item);
+                    const cFree = 0;
+                    const cStd = getAssetMaintenanceCost(item, "standard");
+                    const cPrem = getAssetMaintenanceCost(item, "premium");
+                    const payTag = item.isKpr ? `🏦 KPR (${item.kprBankName || "Bank"})` : (item.isVehicleLoan ? `💳 Cicilan (${item.vehicleFinName || "Leasing"})` : "💵 Cash / Lunas");
+                    const renovTag = item.category === "property" ? ` • Renovasi: +${formatShortJuta(item.renovationValue || 0)} (${item.renovatedCount || 0}x)` : "";
+                    return `
+                        <div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:8px; margin-top:6px;">
+                            <div style="font-size:11.5px; font-weight:900; color:#0f172a;">${item.icon} ${item.name} — ${payTag}</div>
+                            <div style="font-size:10px; color:#475569; margin-top:2px;">
+                                • Dikuasai: <b>${yrs} thn</b> • Kondisi: <b>${item.condition}%</b> • Taksiran Jual: <b style="color:#15803d;">${formatShortJuta(appraisal)}</b>${renovTag}
+                            </div>
+                            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin-top:6px;">
+                                <button class="btn-action btn-dark" style="padding:5px; font-size:9.5px;" ${item.maintainedThisYear ? "disabled" : ""} onclick="maintainOwnedAsset(${idx}, 'free')">🧹 Gratis (Rp 0)</button>
+                                <button class="btn-action btn-primary" style="padding:5px; font-size:9.5px;" ${item.maintainedThisYear ? "disabled" : ""} onclick="maintainOwnedAsset(${idx}, 'standard')">🔧 Standar (${formatShortJuta(cStd)})</button>
+                                <button class="btn-action btn-gold" style="padding:5px; font-size:9.5px;" ${item.maintainedThisYear ? "disabled" : ""} onclick="maintainOwnedAsset(${idx}, 'premium')">💎 Premium (${formatShortJuta(cPrem)})</button>
+                            </div>
+                            <div style="display:grid; grid-template-columns:${item.category === "property" ? "1fr 1fr" : "1fr"}; gap:5px; margin-top:5px;">
+                                ${item.category === "property" ? `<button class="btn-action btn-emerald" style="padding:6px; font-size:10px;" onclick="openPropertyRenovationChoices(${idx})">🏗️ Renovasi Developer</button>` : ""}
+                                <button class="btn-action btn-rose" style="padding:6px; font-size:10px;" onclick="sellOwnedAsset(${idx})">🏷️ Jual Aset (${formatShortJuta(appraisal)})</button>
+                            </div>
+                        </div>
+                    `;
+                }).join("");
+                ownedCard.innerHTML = `
+                    <div class="item-title">📦 Kelola Aset Dimiliki (Maintenance, Renovasi & Jual)</div>
+                    <div class="item-desc">Aset yang tidak di-maintenance akan terdepresiasi lebih tajam saat +Age. Properti bisa direnovasi via Developer (Jujur / Markup) dan dijual (Cash maupun KPR/Kredit).</div>
+                    ${ownedRows}
+                `;
+                bodyEl.appendChild(ownedCard);
+            }
+
             const ppnBanner = document.createElement("div");
             ppnBanner.className = "item-card";
             ppnBanner.style.background = "#090d16";
@@ -12269,6 +12343,370 @@
         });
     }
 
+
+    // =========================================================================
+    // EKSPANSI ASET: DIVIDEN SAHAM, MAINTENANCE, RENOVASI DEVELOPER & JUAL ASET
+    // =========================================================================
+    const ASSET_MAINTENANCE_TIERS = {
+        free: {
+            id: "free",
+            label: "Gratis (Rawat Mandiri / Seadanya)",
+            icon: "🧹",
+            costFactor: 0,
+            condGain: 3,
+            depMitigation: 0.15,
+            desc: "Tanpa biaya kas (Rp 0). Hanya menahan sedikit penurunan kondisi; aset tetap terdepresiasi cukup besar saat +Age."
+        },
+        standard: {
+            id: "standard",
+            label: "Standar (Servis & Perawatan Rutin)",
+            icon: "🔧",
+            costFactor: 0.035,
+            condGain: 16,
+            depMitigation: 0.72,
+            desc: "Biaya perawatan rutin terukur. Menjaga kondisi aset tetap sehat dan mengikuti laju inflasi normal."
+        },
+        premium: {
+            id: "premium",
+            label: "Premium (Bengkel Resmi / Perawatan Total)",
+            icon: "💎",
+            costFactor: 0.085,
+            condGain: 30,
+            depMitigation: 1.05,
+            desc: "Perawatan menyeluruh & suku cadang/material terbaik. Meredam depresiasi, menaikkan nilai jual, dan memberi bonus kebahagiaan/sosial."
+        }
+    };
+
+    const RENOVATION_DEVELOPERS = [
+        {
+            id: "dev_jujur_asri",
+            name: "PT Griya Asri Jujur & Transparan",
+            badge: "✅ Developer Jujur",
+            isMarkup: false,
+            costMult: 1.0,
+            valueMult: 1.32,
+            passiveBonusMult: 1.18,
+            desc: "RAB transparan tanpa biaya siluman, kualitas bangunan rapi, menaikkan taksiran harga jual & potensi sewa properti."
+        },
+        {
+            id: "dev_jujur_karya",
+            name: "CV Karya Konstruksi Terukur",
+            badge: "✅ Developer Terukur",
+            isMarkup: false,
+            costMult: 1.15,
+            valueMult: 1.44,
+            passiveBonusMult: 1.24,
+            desc: "Standar konstruksi kokoh & sertifikat renovasi lengkap; kenaikan nilai properti tinggi & sepadan."
+        },
+        {
+            id: "dev_markup_kilat",
+            name: "PT Kilat Kilau Properti",
+            badge: "⚠️ Penawaran Kilat",
+            isMarkup: true,
+            costMult: 0.85,
+            valueMult: 0.92,
+            passiveBonusMult: 1.03,
+            desc: "Terlihat hemat di awal, namun rawan markup biaya tambahan & hasil finishing kurang menaikkan nilai jual."
+        },
+        {
+            id: "dev_markup_sultan",
+            name: "CV Sultan Abadi Kontraktor",
+            badge: "⚠️ Rawat Markup",
+            isMarkup: true,
+            costMult: 1.25,
+            valueMult: 0.88,
+            passiveBonusMult: 1.02,
+            desc: "Sering mematok markup tinggi atau menagih biaya tambahan mendadak dengan kenaikan nilai properti di bawah ekspektasi."
+        }
+    ];
+
+    function ensureAssetLifecycleProps(as) {
+        if (!as || typeof as !== "object") return as;
+        if (typeof as.basePrice !== "number") as.basePrice = as.price || 0;
+        if (typeof as.purchaseAge !== "number") as.purchaseAge = player ? (player.age || 0) : 0;
+        if (typeof as.condition !== "number") as.condition = 85;
+        if (typeof as.renovationValue !== "number") as.renovationValue = 0;
+        if (typeof as.renovatedCount !== "number") as.renovatedCount = 0;
+        if (typeof as.maintainedThisYear !== "boolean") as.maintainedThisYear = false;
+        if (typeof as.lastMaintTier !== "string") as.lastMaintTier = "";
+        if (typeof as.inflationFactor !== "number") as.inflationFactor = 1.0;
+        as.condition = clamp(as.condition, 10, 100);
+        return as;
+    }
+
+    function getAssetYearsHeld(as) {
+        ensureAssetLifecycleProps(as);
+        const curAge = player ? (player.age || 0) : 0;
+        return Math.max(0, curAge - (as.purchaseAge || 0));
+    }
+
+    function getAssetAppraisalValue(as) {
+        ensureAssetLifecycleProps(as);
+        const yearsHeld = getAssetYearsHeld(as);
+        const infFactor = as.inflationFactor || 1.0;
+        const condFactor = 0.52 + ((as.condition || 80) / 100) * 0.58; // 0.58 .. 1.10
+        let ageFactor = 1.0;
+        if (as.category === "property" || as.category === "business") {
+            ageFactor = 1 + Math.min(yearsHeld, 35) * 0.022;
+        } else if (as.category === "vehicle") {
+            ageFactor = Math.max(0.32, 1 - Math.min(yearsHeld, 25) * 0.032);
+        }
+        const rawVal = ((as.basePrice || as.price || 0) * infFactor * condFactor * ageFactor) + (as.renovationValue || 0);
+        return Math.max(0.5, roundMoney(rawVal));
+    }
+
+    function getAssetMaintenanceCost(as, tierId) {
+        ensureAssetLifecycleProps(as);
+        const tier = ASSET_MAINTENANCE_TIERS[tierId] || ASSET_MAINTENANCE_TIERS.standard;
+        if (tier.costFactor <= 0) return 0;
+        const cityMod = (player && player.city && player.city.costMod) ? player.city.costMod : 1.0;
+        const baseRef = as.basePrice || as.price || 10;
+        return Math.max(0.25, roundMoney(baseRef * tier.costFactor * cityMod));
+    }
+
+    function maintainOwnedAsset(assetIdx, tierId) {
+        if (!player || !Array.isArray(player.assets) || !player.assets[assetIdx]) return;
+        const as = ensureAssetLifecycleProps(player.assets[assetIdx]);
+        const tier = ASSET_MAINTENANCE_TIERS[tierId];
+        if (!tier) return;
+
+        if (as.maintainedThisYear) {
+            showToast(`${as.name} sudah di-maintenance tahun ini!`);
+            return;
+        }
+
+        const cost = getAssetMaintenanceCost(as, tierId);
+        if (cost > 0 && player.money < cost) {
+            showToast(`Saldo kurang! Butuh ${formatShortJuta(cost)} untuk maintenance ${tier.label.split(" ")[0]}.`);
+            return;
+        }
+
+        if (cost > 0) {
+            player.money = roundMoney(player.money - cost);
+        }
+        as.condition = clamp((as.condition || 80) + tier.condGain, 10, 100);
+        as.maintainedThisYear = true;
+        as.lastMaintTier = tierId;
+
+        if (tierId === "premium") {
+            as.renovationValue = roundMoney((as.renovationValue || 0) + (as.basePrice || as.price || 10) * 0.03);
+            modifyStats({ happy: randInt(2, 5), social: randInt(1, 3) });
+        } else if (tierId === "standard") {
+            modifyStats({ happy: randInt(1, 3) });
+        }
+
+        playGameSound("coin");
+        addLog(`${tier.icon} **MAINTENANCE ASET (${tier.label}):** Kamu merawat **${as.icon} ${as.name}**${cost > 0 ? ` (-${formatShortJuta(cost)})` : " (Gratis)"}. Kondisi aset kini **${as.condition}%** • Taksiran nilai: **${formatShortJuta(getAssetAppraisalValue(as))}**.`, "money");
+        showToast(`${tier.icon} Maintenance ${as.name} selesai!`);
+        renderKarirSheet(currentSubTab || "aset");
+        updateUI();
+    }
+
+    function openPropertyRenovationChoices(assetIdx) {
+        if (!player || !Array.isArray(player.assets) || !player.assets[assetIdx]) return;
+        const as = ensureAssetLifecycleProps(player.assets[assetIdx]);
+        if (as.category !== "property") {
+            showToast("Fitur renovasi developer hanya tersedia untuk aset properti/rumah!");
+            return;
+        }
+
+        const pool = [...RENOVATION_DEVELOPERS].sort(() => Math.random() - 0.5).slice(0, 3);
+        const baseRenovCost = Math.max(15, roundMoney((as.basePrice || as.price || 100) * 0.28));
+
+        const choices = pool.map(dev => {
+            const estCost = roundMoney(baseRenovCost * dev.costMult);
+            return {
+                text: `${dev.badge} • ${dev.name} (Est. ${formatShortJuta(estCost)})`,
+                fn: () => executePropertyRenovation(assetIdx, dev.id, estCost)
+            };
+        });
+        choices.push({
+            text: "✕ Batal Renovasi",
+            fn: () => showToast("Renovasi dibatalkan.")
+        });
+
+        showPopupEvent(
+            "🏗️",
+            `Renovasi Properti: ${as.name}`,
+            `Pilih kontraktor/developer untuk merenovasi <b>${as.icon} ${as.name}</b> (Taksiran saat ini: <b>${formatShortJuta(getAssetAppraisalValue(as))}</b>).<br><br>` +
+            pool.map(d => `• <b>${d.name}</b> (${d.badge} • Est. <b>${formatShortJuta(roundMoney(baseRenovCost * d.costMult))}</b>): ${d.desc}`).join("<br>"),
+            choices,
+            "🏠 RENOVASI & DEVELOPER +62"
+        );
+    }
+
+    function executePropertyRenovation(assetIdx, devId, quotedCost) {
+        if (!player || !Array.isArray(player.assets) || !player.assets[assetIdx]) return;
+        const as = ensureAssetLifecycleProps(player.assets[assetIdx]);
+        const dev = RENOVATION_DEVELOPERS.find(d => d.id === devId);
+        if (!dev) return;
+
+        let finalCost = quotedCost;
+        let markupNote = "";
+        if (dev.isMarkup && Math.random() < 0.65) {
+            const extraMarkup = roundMoney(quotedCost * (randInt(15, 35) / 100));
+            finalCost = roundMoney(quotedCost + extraMarkup);
+            markupNote = ` Developer melakukan <b>markup biaya tambahan +${formatShortJuta(extraMarkup)}</b> di tengah pengerjaan!`;
+        }
+
+        if (player.money < finalCost) {
+            showToast(`Saldo kurang untuk renovasi! Butuh ${formatShortJuta(finalCost)}.`);
+            return;
+        }
+
+        player.money = roundMoney(player.money - finalCost);
+        as.renovatedCount = (as.renovatedCount || 0) + 1;
+        as.condition = clamp((as.condition || 80) + 20, 10, 100);
+
+        const valueAdded = roundMoney(finalCost * (dev.valueMult * (dev.isMarkup ? 0.68 : 1.05)));
+        as.renovationValue = roundMoney((as.renovationValue || 0) + valueAdded);
+        as.passive = roundMoney((as.passive || 0) * dev.passiveBonusMult);
+
+        if (dev.isMarkup) {
+            modifyStats({ happy: -randInt(2, 6), social: -randInt(1, 4) });
+            addLog(`⚠️ **RENOVASI MARKUP (${dev.name}):** Renovasi **${as.icon} ${as.name}** menelan **-${formatShortJuta(finalCost)}**.${markupNote} Nilai jual bertambah **+${formatShortJuta(valueAdded)}**.`, "danger");
+            showToast(`⚠️ Renovasi selesai dengan markup (${dev.name})`);
+        } else {
+            modifyStats({ happy: randInt(4, 9), social: randInt(2, 5) });
+            addLog(`🏗️ **RENOVASI JUJUR (${dev.name}):** Renovasi **${as.icon} ${as.name}** tuntas sebesar **-${formatShortJuta(finalCost)}**! Nilai taksiran jual naik **+${formatShortJuta(valueAdded)}** (Total taksiran kini **${formatShortJuta(getAssetAppraisalValue(as))}**).`, "money");
+            showToast(`🏗️ Renovasi ${as.name} tuntas!`);
+        }
+
+        renderKarirSheet(currentSubTab || "aset");
+        updateUI();
+    }
+
+    function sellOwnedAsset(assetIdx, forceTopUp = false) {
+        if (!player || !Array.isArray(player.assets) || !player.assets[assetIdx]) return;
+        const as = ensureAssetLifecycleProps(player.assets[assetIdx]);
+        const yearsHeld = getAssetYearsHeld(as);
+        const grossSalePrice = getAssetAppraisalValue(as);
+        const txFee = roundMoney(grossSalePrice * 0.03); // biaya admin/pajak pengalihan 3%
+        const netSaleProceeds = roundMoney(grossSalePrice - txFee);
+
+        let loan = null;
+        let loanIdx = -1;
+        if (as.isKpr && as.kprLoanId && Array.isArray(player.kprLoans)) {
+            loanIdx = player.kprLoans.findIndex(k => k.id === as.kprLoanId);
+            if (loanIdx !== -1) loan = player.kprLoans[loanIdx];
+        } else if (as.isVehicleLoan && as.vehicleLoanId && Array.isArray(player.vehicleLoans)) {
+            loanIdx = player.vehicleLoans.findIndex(v => v.id === as.vehicleLoanId);
+            if (loanIdx !== -1) loan = player.vehicleLoans[loanIdx];
+        }
+
+        const remainingDebt = loan ? roundMoney(loan.remainingBalance || 0) : 0;
+        const netCashDelta = roundMoney(netSaleProceeds - remainingDebt);
+
+        if (netCashDelta < 0 && !forceTopUp) {
+            const shortage = Math.abs(netCashDelta);
+            showPopupEvent(
+                "🏦",
+                `Jual & Lunasi Sisa Cicilan: ${as.name}`,
+                `Taksiran harga jual setelah inflasi & lama dikuasai (${yearsHeld} thn): <b>${formatShortJuta(grossSalePrice)}</b> (Bersih stlh biaya 3%: <b>${formatShortJuta(netSaleProceeds)}</b>).<br>` +
+                `Sisa cicilan aktif: <b>${formatShortJuta(remainingDebt)}</b>.<br><br>` +
+                `Nilai jual masih kurang <b>${formatShortJuta(shortage)}</b> dari sisa cicilan. Apakah kamu ingin menutup selisih kekurangan dari saldo bank agar aset terjual & cicilan lunas?`,
+                [
+                    {
+                        text: `💸 Bayar Selisih ${formatShortJuta(shortage)} & Jual Aset`,
+                        fn: () => sellOwnedAsset(assetIdx, true)
+                    },
+                    {
+                        text: "✕ Batalkan Penjualan",
+                        fn: () => showToast("Penjualan aset dibatalkan.")
+                    }
+                ],
+                "🏷️ PELUNASAN & JUAL ASET"
+            );
+            return;
+        }
+
+        if (netCashDelta < 0 && player.money < Math.abs(netCashDelta)) {
+            showToast(`Saldo kurang ${formatShortJuta(Math.abs(netCashDelta))} untuk menutup selisih pelunasan cicilan!`);
+            return;
+        }
+
+        player.money = roundMoney(player.money + netCashDelta);
+        if (loan && loanIdx !== -1) {
+            if (as.isKpr) player.kprLoans.splice(loanIdx, 1);
+            if (as.isVehicleLoan) player.vehicleLoans.splice(loanIdx, 1);
+        }
+
+        player.assets.splice(assetIdx, 1);
+        modifyStats({ happy: netCashDelta >= 0 ? randInt(2, 6) : -randInt(1, 4) });
+        playGameSound("coin");
+
+        const loanText = loan ? ` (Melunasi sisa cicilan ${loan.bankName || loan.providerName || "Kredit"} ${formatShortJuta(remainingDebt)})` : " (Pembelian Cash)";
+        const cashSign = netCashDelta >= 0 ? "+" : "-";
+        addLog(`🏷️ **TERJUAL ASET (${yearsHeld} THN DIKUASAI):** Kamu menjual **${as.icon} ${as.name}**${loanText} dengan taksiran **${formatShortJuta(grossSalePrice)}** (Biaya 3%: -${formatShortJuta(txFee)}). Saldo kas **${cashSign}${formatShortJuta(Math.abs(netCashDelta))}**!`, "money");
+        showToast(`🏷️ ${as.name} terjual (${cashSign}${formatShortJuta(Math.abs(netCashDelta))})`);
+        renderKarirSheet(currentSubTab || "aset");
+        updateUI();
+    }
+
+    function processAnnualDividendsAndAssetInflation() {
+        if (!player || !player.alive) return;
+
+        // 1. Dividen Saham Tahunan (terutama Saham Blue Chip + dividen opsional emiten lain)
+        if (!player.portfolio) player.portfolio = {};
+        if (!player.marketPrices) player.marketPrices = { saham_bluechip: 5, saham_gorengan: 2, crypto_btc: 15, crypto_micin: 1 };
+
+        let totalDivGross = 0;
+        let totalDivTax = 0;
+        let divNotes = [];
+
+        Object.entries(player.portfolio).forEach(([instId, h]) => {
+            const units = h ? (h.units || 0) : 0;
+            if (units <= 0) return;
+            const inst = (typeof MARKET_INSTRUMENTS !== "undefined") ? MARKET_INSTRUMENTS.find(x => x.id === instId) : null;
+            const price = (player.marketPrices && player.marketPrices[instId]) ? player.marketPrices[instId] : (inst ? inst.basePrice : 1);
+            const posVal = units * price;
+
+            let yieldRate = 0;
+            if (instId === "saham_bluechip") {
+                yieldRate = randInt(35, 75) / 1000; // 3.5% - 7.5%
+            } else if (instId === "saham_gorengan" && Math.random() < 0.25) {
+                yieldRate = randInt(10, 40) / 1000; // 1.0% - 4.0% (sesekali saja)
+            }
+
+            if (yieldRate > 0 && posVal > 0) {
+                const gross = roundMoney(posVal * yieldRate);
+                const tax = roundMoney(gross * 0.10); // Pajak dividen simulasi 10%
+                totalDivGross = roundMoney(totalDivGross + gross);
+                totalDivTax = roundMoney(totalDivTax + tax);
+                divNotes.push(`${inst ? inst.icon : "📈"} ${inst ? inst.name : instId} (+${formatShortJuta(gross)})`);
+            }
+        });
+
+        if (totalDivGross > 0) {
+            const netDiv = roundMoney(totalDivGross - totalDivTax);
+            player.money = roundMoney(player.money + netDiv);
+            addLog(`💸 **DIVIDEN SAHAM DITERIMA:** Dividen kotor **+${formatShortJuta(totalDivGross)}** (Pajak dividen -${formatShortJuta(totalDivTax)}). Bersih masuk saldo **+${formatShortJuta(netDiv)}** (${divNotes.join(", ")}).`, "money");
+        }
+
+        // 2. Inflasi Tahunan & Depresiasi Aset Jika Tidak Di-Maintenance
+        const annualInflation = (0.025 + Math.random() * 0.025); // 2.5% - 5.0% inflasi tahunan
+        let unmaintainedCount = 0;
+
+        (player.assets || []).forEach(as => {
+            if (!as || as.id === "asuransi" || as.category === "insurance") return;
+            ensureAssetLifecycleProps(as);
+            as.inflationFactor = Number(((as.inflationFactor || 1.0) * (1 + annualInflation)).toFixed(4));
+
+            if (!as.maintainedThisYear) {
+                unmaintainedCount += 1;
+                const heavyDrop = as.category === "vehicle" ? randInt(10, 18) : randInt(6, 13);
+                as.condition = clamp((as.condition || 80) - heavyDrop, 10, 100);
+            }
+            // Reset status maintenance tahunan untuk tahun berikutnya
+            as.maintainedThisYear = false;
+            as.lastMaintTier = "";
+        });
+
+        if (unmaintainedCount > 0) {
+            addLog(`🛠️ **DEPRESIASI ASET (${unmaintainedCount} ASET TIDAK DI-MAINTAIN):** Inflasi tahunan **+${(annualInflation * 100).toFixed(1)}%** tercatat, namun **${unmaintainedCount} aset** yang tidak dirawat tahun ini mengalami penurunan kondisi & nilai jual lebih tajam!`, "danger");
+        }
+    }
+
     function buyAssetItem(idx) {
         const as = ASSETS[idx];
         if (!as) return;
@@ -12323,7 +12761,7 @@
         }
 
         player.money = roundMoney(player.money - totalCost);
-        player.assets.push({ ...as });
+        player.assets.push(ensureAssetLifecycleProps({ ...as, basePrice: as.price, purchaseAge: player.age, condition: 95, renovationValue: 0, renovatedCount: 0, maintainedThisYear: false, inflationFactor: 1.0 }));
         modifyStats({ happy: as.happyBonus, social: as.socialBonus });
         playGameSound("coin");
         addLog(`🏠 **BELI ASET BARU (+PPN ${Math.round(ppnRate * 100)}%):** Kamu membeli **${as.icon} ${as.name}** seharga Rp ${as.price} Jt + PPN Rp ${ppnAmt} Jt (Total **-${formatShortJuta(totalCost)}**). Passive income bertambah **+Rp ${as.passive} Jt/thn**!`, "money");
@@ -17749,7 +18187,11 @@
         const inhData = calculateInheritanceDistribution();
         const lawEl = document.getElementById("inheritanceLawLabel");
         const listEl = document.getElementById("inheritanceBreakdownList");
-        if (lawEl) lawEl.innerHTML = `${inhData.religion.icon} <b>Agama: ${inhData.religion.name}</b> — ${inhData.religion.lawName}<br>💰 <b>Komposisi Harta Dibagikan:</b> Tunai ${formatShortJuta(inhData.cashVal)} + Likuidasi Aset ${formatShortJuta(inhData.assetVal)} + Saham/Crypto ${formatShortJuta(inhData.portfolioVal)} = <b>Total ${formatShortJuta(inhData.totalEstate)}</b> (Aset <b>termasuk</b> ke dalam total waris yang dibagikan).`;
+        const ds = inhData.debtSummary || { totalDebt: 0, debtPaid: 0, unpaidDebt: 0, settlementNotes: [] };
+        const debtHtml = ds.totalDebt > 0
+            ? `<br>⚖️ <b>Pelunasan Utang / Pinjol / Bank Sebelum Bagi Waris:</b> Total kewajiban <b>${formatShortJuta(ds.totalDebt)}</b> (${ds.settlementNotes.join(" • ")}) — dilunasi dari harta/aset sebesar <b>-${formatShortJuta(ds.debtPaid)}</b>${ds.unpaidDebt > 0 ? ` (Sisa utang tak tercover: <b>${formatShortJuta(ds.unpaidDebt)}</b>, harta bersih ahli waris Rp 0 Jt)` : " (Lunas 100%)"}.`
+            : "";
+        if (lawEl) lawEl.innerHTML = `${inhData.religion.icon} <b>Agama: ${inhData.religion.name}</b> — ${inhData.religion.lawName}<br>💰 <b>Komposisi Harta Kotor:</b> Tunai ${formatShortJuta(inhData.cashVal)} + Taksiran Aset ${formatShortJuta(inhData.assetVal)} + Saham/Crypto ${formatShortJuta(inhData.portfolioVal)}${debtHtml}<br>👑 <b>Harta Bersih Dibagikan ke Ahli Waris:</b> <b>${formatShortJuta(inhData.totalEstate)}</b>.`;
         if (listEl) {
             if (inhData.breakdown.length === 0) {
                 listEl.innerHTML = `<div style="color:#6b5344;">Tidak ada ahli waris tercatat. Harta diserahkan ke kas negara/yayasan.</div>`;
